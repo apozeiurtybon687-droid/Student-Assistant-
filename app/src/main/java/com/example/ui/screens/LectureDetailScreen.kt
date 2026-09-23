@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.local.LectureEntity
+import com.example.data.local.ThemePreferences
 import com.example.ui.components.NotebookPaperView
 import com.example.ui.viewmodel.LectureViewModel
 import java.text.SimpleDateFormat
@@ -41,12 +42,21 @@ import java.util.Locale
 fun LectureDetailScreen(
     lecture: LectureEntity,
     viewModel: LectureViewModel,
+    themePreferences: ThemePreferences = ThemePreferences.getInstance(LocalContext.current),
     onBack: () -> Unit,
     onOpenChat: (LectureEntity) -> Unit
 ) {
     val context = LocalContext.current
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     var showTranslateDialog by remember { mutableStateOf(false) }
+    var showThemeDialog by remember { mutableStateOf(false) }
+
+    if (showThemeDialog) {
+        ThemeAndProfileDialog(
+            themePreferences = themePreferences,
+            onDismiss = { showThemeDialog = false }
+        )
+    }
 
     val isAnalyzing by viewModel.isAnalyzing.collectAsState()
     val isTranslating by viewModel.isTranslating.collectAsState()
@@ -103,6 +113,16 @@ fun LectureDetailScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = { showThemeDialog = true },
+                        modifier = Modifier.testTag("detail_theme_settings_button")
+                    ) {
+                        Icon(
+                            Icons.Default.Palette,
+                            contentDescription = "المظهر والهوية",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                     IconButton(
                         onClick = {
                             viewModel.deleteLecture(lecture)

@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -24,6 +25,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.local.FolderEntity
 import com.example.data.local.LectureEntity
+import com.example.data.local.ThemePreferences
+import com.example.data.local.UserGender
+import com.example.ui.theme.LocalIsDarkMode
 import com.example.ui.viewmodel.LectureViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -33,6 +37,7 @@ import java.util.Locale
 @Composable
 fun HomeScreen(
     viewModel: LectureViewModel,
+    themePreferences: ThemePreferences = ThemePreferences.getInstance(LocalContext.current),
     onOpenLecture: (LectureEntity) -> Unit,
     onOpenLiveVoice: () -> Unit,
     onOpenChat: () -> Unit
@@ -44,10 +49,21 @@ fun HomeScreen(
     val isAnalyzing by viewModel.isAnalyzing.collectAsState()
     val statusMsg by viewModel.statusMessage.collectAsState()
 
+    val currentGender by themePreferences.gender.collectAsState()
+    val isDarkMode = LocalIsDarkMode.current
+
     var showRecordSheet by remember { mutableStateOf(false) }
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var showApiKeyDialog by remember { mutableStateOf(false) }
     var showDownloadDialog by remember { mutableStateOf(false) }
+    var showThemeDialog by remember { mutableStateOf(false) }
+
+    if (showThemeDialog) {
+        ThemeAndProfileDialog(
+            themePreferences = themePreferences,
+            onDismiss = { showThemeDialog = false }
+        )
+    }
 
     if (showApiKeyDialog) {
         ApiKeySettingsDialog(
@@ -86,25 +102,47 @@ fun HomeScreen(
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.primary),
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.primaryContainer)
+                                .clickable { showThemeDialog = true },
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.School, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+                            Text(
+                                text = if (currentGender == UserGender.FEMALE) "👩‍🎓" else "👨‍🎓",
+                                fontSize = 22.sp
+                            )
                         }
                         Column {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = "ملاحظات المحاضرات",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Surface(
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(6.dp),
+                                    modifier = Modifier.clickable { showThemeDialog = true }
+                                ) {
+                                    Text(
+                                        text = if (currentGender == UserGender.FEMALE) "طالبة 💖" else "طالب 💙",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
                             Text(
-                                text = "ملاحظات المحاضرات الذكية",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "رفيق الطالب الجامعي بالذكاء الاصطناعي",
+                                text = if (isDarkMode) "الوضع الليلي 🌙" else "الوضع النهاري ☀️",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -112,6 +150,17 @@ fun HomeScreen(
                     }
                 },
                 actions = {
+                    // Theme & Profile Switcher Button (Palette)
+                    IconButton(
+                        onClick = { showThemeDialog = true },
+                        modifier = Modifier.testTag("home_theme_settings_button")
+                    ) {
+                        Icon(
+                            Icons.Default.Palette,
+                            contentDescription = "تخصيص المظهر والهوية (أزرق/وردي وليلي/نهاري)",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                     IconButton(
                         onClick = { showDownloadDialog = true },
                         modifier = Modifier.testTag("home_download_apk_button")
@@ -119,7 +168,7 @@ fun HomeScreen(
                         Icon(
                             Icons.Default.DownloadForOffline,
                             contentDescription = "تحميل التطبيق على الهاتف",
-                            tint = Color(0xFF2563EB)
+                            tint = MaterialTheme.colorScheme.secondary
                         )
                     }
                     IconButton(
@@ -149,7 +198,7 @@ fun HomeScreen(
                         Icon(
                             Icons.Default.GraphicEq,
                             contentDescription = "محادثة صوتية مباشرة",
-                            tint = Color(0xFF0D9488)
+                            tint = MaterialTheme.colorScheme.secondary
                         )
                     }
                 },

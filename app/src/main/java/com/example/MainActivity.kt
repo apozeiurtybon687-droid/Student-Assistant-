@@ -6,16 +6,16 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.data.local.LectureEntity
+import com.example.data.local.ThemePreferences
+import com.example.data.local.UserGender
 import com.example.ui.screens.GeminiChatScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.LectureDetailScreen
@@ -37,8 +37,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MyApplicationTheme {
-                SmartLectureApp()
+            val context = LocalContext.current
+            val themePreferences = remember { ThemePreferences.getInstance(context) }
+            val userGender by themePreferences.gender.collectAsState()
+            val themeMode by themePreferences.themeMode.collectAsState()
+
+            MyApplicationTheme(
+                gender = userGender,
+                themeMode = themeMode
+            ) {
+                SmartLectureApp(themePreferences = themePreferences)
             }
         }
     }
@@ -46,6 +54,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun SmartLectureApp(
+    themePreferences: ThemePreferences = ThemePreferences.getInstance(LocalContext.current),
     lectureViewModel: LectureViewModel = viewModel(),
     chatViewModel: ChatViewModel = viewModel(),
     liveVoiceViewModel: LiveVoiceViewModel = viewModel()
@@ -79,6 +88,7 @@ fun SmartLectureApp(
             Screen.HOME -> {
                 HomeScreen(
                     viewModel = lectureViewModel,
+                    themePreferences = themePreferences,
                     onOpenLecture = { lecture ->
                         lectureViewModel.selectLecture(lecture)
                         currentScreen = Screen.LECTURE_DETAIL
@@ -142,5 +152,5 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
 @Preview(showBackground = true)
 @Composable
 fun GreetingPreview() {
-    MyApplicationTheme { Greeting("Android") }
+    MyApplicationTheme(gender = UserGender.MALE) { Greeting("Android") }
 }

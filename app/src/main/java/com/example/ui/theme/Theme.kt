@@ -1,70 +1,133 @@
 package com.example.ui.theme
 
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import com.example.data.local.ThemeMode
+import com.example.data.local.UserGender
 
-private val DarkColorScheme = darkColorScheme(
-    primary = AccentCyan,
-    onPrimary = Color(0xFF00363D),
-    primaryContainer = Color(0xFF004F59),
-    onPrimaryContainer = Color(0xFFBCEBFF),
-    secondary = SecondaryTeal,
-    onSecondary = Color(0xFF003833),
-    secondaryContainer = Color(0xFF005049),
-    onSecondaryContainer = Color(0xFF9DF2E8),
+// CompositionLocal for convenient access to gender and theme mode in UI components
+val LocalUserGender = staticCompositionLocalOf { UserGender.MALE }
+val LocalIsDarkMode = staticCompositionLocalOf { false }
+
+// =====================================
+// Male Color Schemes (Blue)
+// =====================================
+private val MaleLightColorScheme = lightColorScheme(
+    primary = MaleBluePrimary,
+    onPrimary = Color.White,
+    primaryContainer = MaleBlueContainerLight,
+    onPrimaryContainer = MaleBlueOnContainerLight,
+    secondary = MaleBlueSecondary,
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE0F2FE),
+    onSecondaryContainer = Color(0xFF0369A1),
     tertiary = AmberAccent,
-    background = DarkBackground,
-    onBackground = DarkTextPrimary,
-    surface = DarkSurface,
-    onSurface = DarkTextPrimary,
-    surfaceVariant = DarkSurfaceVariant,
-    onSurfaceVariant = DarkTextSecondary
+    background = MaleLightBackground,
+    onBackground = LightTextPrimary,
+    surface = MaleLightSurface,
+    onSurface = LightTextPrimary,
+    surfaceVariant = MaleLightSurfaceVariant,
+    onSurfaceVariant = LightTextSecondary,
+    error = ErrorRed,
+    onError = Color.White
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = PrimaryIndigo,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFDBEAFE),
-    onPrimaryContainer = Color(0xFF1E3A8A),
-    secondary = SecondaryTeal,
-    onSecondary = Color.White,
-    secondaryContainer = Color(0xFFCCFBF1),
-    onSecondaryContainer = Color(0xFF115E59),
+private val MaleDarkColorScheme = darkColorScheme(
+    primary = MaleBluePrimaryDark,
+    onPrimary = Color(0xFF0F172A),
+    primaryContainer = MaleBlueContainerDark,
+    onPrimaryContainer = MaleBlueOnContainerDark,
+    secondary = MaleBlueSecondaryDark,
+    onSecondary = Color(0xFF0F172A),
+    secondaryContainer = Color(0xFF075985),
+    onSecondaryContainer = Color(0xFFBAE6FD),
     tertiary = AmberAccent,
-    background = LightBackground,
+    background = MaleDarkBackground,
+    onBackground = DarkTextPrimary,
+    surface = MaleDarkSurface,
+    onSurface = DarkTextPrimary,
+    surfaceVariant = MaleDarkSurfaceVariant,
+    onSurfaceVariant = DarkTextSecondary,
+    error = Color(0xFFF87171),
+    onError = Color.White
+)
+
+// =====================================
+// Female Color Schemes (Pink)
+// =====================================
+private val FemaleLightColorScheme = lightColorScheme(
+    primary = FemalePinkPrimary,
+    onPrimary = Color.White,
+    primaryContainer = FemalePinkContainerLight,
+    onPrimaryContainer = FemalePinkOnContainerLight,
+    secondary = FemalePinkSecondary,
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFFFE4E6),
+    onSecondaryContainer = Color(0xFF9F1239),
+    tertiary = AmberAccent,
+    background = FemaleLightBackground,
     onBackground = LightTextPrimary,
-    surface = LightSurface,
+    surface = FemaleLightSurface,
     onSurface = LightTextPrimary,
-    surfaceVariant = LightSurfaceVariant,
-    onSurfaceVariant = LightTextSecondary
+    surfaceVariant = FemaleLightSurfaceVariant,
+    onSurfaceVariant = LightTextSecondary,
+    error = ErrorRed,
+    onError = Color.White
+)
+
+private val FemaleDarkColorScheme = darkColorScheme(
+    primary = FemalePinkPrimaryDark,
+    onPrimary = Color(0xFF261522),
+    primaryContainer = FemalePinkContainerDark,
+    onPrimaryContainer = FemalePinkOnContainerDark,
+    secondary = FemalePinkSecondaryDark,
+    onSecondary = Color(0xFF261522),
+    secondaryContainer = Color(0xFF881337),
+    onSecondaryContainer = Color(0xFFFECDD3),
+    tertiary = AmberAccent,
+    background = FemaleDarkBackground,
+    onBackground = DarkTextPrimary,
+    surface = FemaleDarkSurface,
+    onSurface = DarkTextPrimary,
+    surfaceVariant = FemaleDarkSurfaceVariant,
+    onSurfaceVariant = DarkTextSecondary,
+    error = Color(0xFFF87171),
+    onError = Color.White
 )
 
 @Composable
 fun MyApplicationTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = false, // Keep consistent academic brand palette
+    gender: UserGender = UserGender.MALE,
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+    val systemInDark = isSystemInDarkTheme()
+    val isDark = when (themeMode) {
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+        ThemeMode.SYSTEM -> systemInDark
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    val colorScheme: ColorScheme = when (gender) {
+        UserGender.MALE -> if (isDark) MaleDarkColorScheme else MaleLightColorScheme
+        UserGender.FEMALE -> if (isDark) FemaleDarkColorScheme else FemaleLightColorScheme
+    }
+
+    CompositionLocalProvider(
+        LocalUserGender provides gender,
+        LocalIsDarkMode provides isDark
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }
