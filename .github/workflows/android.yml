@@ -9,11 +9,11 @@ on:
 
 jobs:
   build:
-    name: Build & Generate APK
+    name: Build Debug APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout Source Code
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -23,15 +23,28 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+      - name: Prepare Keystore and Environment Files
+        run: |
+          # Restore debug keystore if base64 file is present
+          if [ -f debug.keystore.base64 ] && [ ! -f debug.keystore ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+          fi
+          # Ensure .env file exists so Secrets Gradle plugin succeeds
+          if [ ! -f .env ]; then
+            cp .env.example .env
+          fi
+          # Grant execution permission for Gradle Wrapper
+          chmod +x gradlew
 
-      - name: Upload APK Artifact
+      - name: Build Debug APK with Gradle
+        run: ./gradlew assembleDebug --no-daemon --stacktrace -Dorg.gradle.configuration-cache=false
+
+      - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SmartLectureNotes-APK
+          name: SmartLectureNotes-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 14
