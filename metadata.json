@@ -1,0 +1,6 @@
+{
+  "name": "Smart Lecture Notes",
+  "description": "تطبيق متكامل لمساعدة الطالب الجامعي في تسجيل المحاضرات وتفريغها صوتياً وتلخيصها مع تنظيم الملاحظات والشرح بالذكاء الاصطناعي جيميني والترجمة والبحث الصوتي.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
