@@ -27,19 +27,33 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Setup Android SDK Licenses and Environment
+      - name: Setup Android SDK Licenses and Platform 36
         run: |
-          echo "Configuring Android SDK and accepting licenses..."
+          echo "Setting up Android SDK licenses..."
           mkdir -p "$ANDROID_HOME/licenses"
-          
-          # Standard Android SDK and Preview License hashes
-          echo -e "\n24333f8a63b6825ea9c5514f83c2829b004d1fee\nd56f5187479451eabf01fb78af6dfcb131a6481e\n8933bad161af4178b1185d1a37fbf41ea5269c55" >> "$ANDROID_HOME/licenses/android-sdk-license"
-          echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd\n504667f4c0de7af1a06de9f4b1727b84351f2910" >> "$ANDROID_HOME/licenses/android-sdk-preview-license"
-          
+          echo -e "24333f8a63b6825ea9c5514f83c2829b004d1fee\n8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e" > "$ANDROID_HOME/licenses/android-sdk-license"
+          echo -e "84831b9409646a918e30573bab4c9c91346d8abd" > "$ANDROID_HOME/licenses/android-sdk-preview-license"
+          echo -e "601085b94cd77f0b54ff86406957099ebe79c4d6" > "$ANDROID_HOME/licenses/android-googletv-license"
+          echo -e "ceff83576aac4f7f37cb98fe189e9fb3c49d3b81" > "$ANDROID_HOME/licenses/android-googlexr-license"
+          echo -e "859f317696f67ef3d7f30a50a5560e7834b43903" > "$ANDROID_HOME/licenses/android-sdk-arm-dbt-license"
+          echo -e "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > "$ANDROID_HOME/licenses/google-gdk-license"
+          echo -e "e9acab5b5fbb560a72cfaecce8946896ff6aab9d" > "$ANDROID_HOME/licenses/mips-android-sysimage-license"
+
+          echo "Accepting all licenses..."
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+
+          echo "Installing platforms android-36 and android-36.1..."
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36.1" "platforms;android-36" || true
+
+      - name: Prepare Keystore and Environment Files
+        run: |
           # Restore debug keystore from base64 if present
           if [ -f debug.keystore.base64 ] && [ ! -f debug.keystore ]; then
             base64 -d debug.keystore.base64 > debug.keystore
             echo "Restored debug.keystore successfully"
+          elif [ ! -f debug.keystore ]; then
+            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+            echo "Generated fallback debug.keystore"
           fi
 
           # Ensure .env file exists for Secrets Gradle plugin
@@ -52,7 +66,7 @@ jobs:
           chmod +x gradlew
 
       - name: Build APK with Gradle
-        run: ./gradlew assembleDebug --no-daemon --stacktrace -Dorg.gradle.configuration-cache=false
+        run: ./gradlew assembleDebug --no-daemon --stacktrace --no-configuration-cache
 
       - name: Upload APK as Artifact
         uses: actions/upload-artifact@v4
