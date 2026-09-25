@@ -29,13 +29,26 @@ class GeminiService(context: Context? = null) {
     private val apiKeyManager = context?.let { ApiKeyManager(it) }
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(90, TimeUnit.SECONDS)
-        .readTimeout(90, TimeUnit.SECONDS)
-        .writeTimeout(90, TimeUnit.SECONDS)
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
         .build()
 
     fun getActiveApiKey(): String {
-        return apiKeyManager?.getApiKey() ?: com.example.BuildConfig.GEMINI_API_KEY.ifEmpty { "" }
+        val userKey = apiKeyManager?.getApiKey()?.trim() ?: ""
+        if (userKey.isNotEmpty() && userKey != "MY_GEMINI_API_KEY") {
+            return userKey
+        }
+        val buildKey = com.example.BuildConfig.GEMINI_API_KEY.trim()
+        if (buildKey.isNotEmpty() && buildKey != "MY_GEMINI_API_KEY") {
+            return buildKey
+        }
+        return ""
+    }
+
+    fun hasValidApiKey(): Boolean {
+        val key = getActiveApiKey()
+        return key.isNotEmpty() && key != "MY_GEMINI_API_KEY"
     }
 
     /**
@@ -55,7 +68,7 @@ class GeminiService(context: Context? = null) {
         val systemPrompt = """
             أنت مساعد أكاديمي ذكي متخصص في تحليل وتفريغ وتلخيص المحاضرات الجامعية.
             مهمتك:
-            1. تفريغ صوت الأستاذ بدقة بالغة (Transcript) باللغة الأصلية المنطوقة.
+            1. تفريغ صوت الأستاذ بدقة بالغة (Transcript) باللغة المنطوقة كاملة دون اختصار مخل.
             2. صياغة ملخص شامل وموجز لأهم محاور المحاضرة (Summary).
             3. تدوين ملاحظات دراسية منظمة ومنسقة في نقاط (Key Points / Organized Notes).
             4. تقديم شرح تفصيلي ومبسط للمفاهيم والمصطلحات الصعبة التي تطرق لها الأستاذ (In-depth Explanations).
@@ -87,9 +100,9 @@ class GeminiService(context: Context? = null) {
 
             val textPart = JSONObject().apply {
                 val promptText = if (customPromptHint.isNotBlank()) {
-                    "قم بتفريغ وتحليل هذه المحاضرة بدقة مع مراعاة الملاحظة الإضافية: $customPromptHint"
+                    "قم بتفريغ وتحليل هذه المحاضرة الصوتية بالكامل وكتابة كلام الأستاذ نصياً مع مراعاة: $customPromptHint"
                 } else {
-                    "قم بتفريغ وتحليل وشرح وتلخيص هذه المحاضرة الجامعية المسجلة صوتياً بدقة بالغة."
+                    "قم بتفريغ صوت الأستاذ كاملاً إلى نص مكتوب وتحليل وشرح وتلخيص هذه المحاضرة الجامعية بدقة بالغة."
                 }
                 put("text", promptText)
             }
@@ -111,9 +124,9 @@ class GeminiService(context: Context? = null) {
             })
         }
 
-        // Try primary model gemini-3.8-flash, fallback if needed
+        // Use valid models: gemini-2.5-flash, gemini-flash-latest, gemini-3.5-flash
         val rawResponse = callGenerateContentWithFallback(
-            listOf("gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-flash-latest"),
+            listOf("gemini-2.5-flash", "gemini-flash-latest", "gemini-3.5-flash"),
             jsonRequest
         )
         parseAnalysisResponse(rawResponse)
@@ -126,8 +139,8 @@ class GeminiService(context: Context? = null) {
         lectureContent: String
     ): LectureAnalysisResult = withContext(Dispatchers.IO) {
         val systemPrompt = """
-            أنت مساعد أكاديمي ذكي متخصص في المحاضرات الجامعية مدعوم بنموذج Gemini 3.8 Flash.
-            المطلوب: تحليل هذا النص الصوتي للمحاضرة وتلخيصه وتنظيم ملاحظاته وشرحه ووضع أسئلة اختبار.
+            أنت مساعد أكاديمي ذكي متخصص في المحاضرات الجامعية.
+            المطلوب: تحليل هذا النص للمحاضرة وتلخيصه وتنظيم ملاحظاته وشرحه ووضع أسئلة اختبار.
             أعد JSON حصرياً بالشكل:
             {
               "transcript": "...",
@@ -161,7 +174,7 @@ class GeminiService(context: Context? = null) {
         }
 
         val rawResponse = callGenerateContentWithFallback(
-            listOf("gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-flash-latest"),
+            listOf("gemini-2.5-flash", "gemini-flash-latest", "gemini-3.5-flash"),
             jsonRequest
         )
         parseAnalysisResponse(rawResponse)
@@ -174,7 +187,7 @@ class GeminiService(context: Context? = null) {
         text: String,
         targetLanguageName: String
     ): String = withContext(Dispatchers.IO) {
-        val systemPrompt = "You are a professional academic translator powered by Gemini 3.8 Flash. Translate the provided lecture text accurately into $targetLanguageName. Maintain academic terminology, clear structure, and flawless grammar without any mistakes."
+        val systemPrompt = "You are a professional academic translator. Translate the provided lecture text accurately into $targetLanguageName. Maintain academic terminology, clear structure, and flawless grammar."
 
         val jsonRequest = JSONObject().apply {
             val contentsArray = JSONArray()
@@ -195,7 +208,7 @@ class GeminiService(context: Context? = null) {
         }
 
         val rawResponse = callGenerateContentWithFallback(
-            listOf("gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-flash-latest"),
+            listOf("gemini-2.5-flash", "gemini-flash-latest", "gemini-3.5-flash"),
             jsonRequest
         )
         extractTextFromResponse(rawResponse)
@@ -234,14 +247,14 @@ class GeminiService(context: Context? = null) {
             })
         }
 
-        val normalizedModel = modelName.removePrefix("models/")
-        val fallbackModels = listOf(normalizedModel, "gemini-3.5-flash", "gemini-2.5-flash", "gemini-flash-latest").distinct()
+        val cleanModel = modelName.removePrefix("models/").replace("gemini-3.8-flash", "gemini-2.5-flash")
+        val fallbackModels = listOf(cleanModel, "gemini-2.5-flash", "gemini-flash-latest", "gemini-3.5-flash").distinct()
         val rawResponse = callGenerateContentWithFallback(fallbackModels, jsonRequest)
         extractTextFromResponse(rawResponse)
     }
 
     /**
-     * Text to Speech using gemini-3.1-flash-tts-preview or gemini-2.5-flash-preview-tts
+     * Text to Speech using gemini-2.5-flash-preview-tts
      */
     suspend fun generateSpeech(
         textToSpeak: String,
@@ -270,7 +283,7 @@ class GeminiService(context: Context? = null) {
             })
         }
 
-        val ttsModels = listOf("gemini-3.1-flash-tts-preview", "gemini-2.5-flash-preview-tts")
+        val ttsModels = listOf("gemini-2.5-flash-preview-tts")
         for (m in ttsModels) {
             try {
                 val rawResponse = callGenerateContent(m, jsonRequest)
@@ -297,7 +310,7 @@ class GeminiService(context: Context? = null) {
     }
 
     /**
-     * Live Voice API conversational turn using gemini-3.8-live with fallback to audio models
+     * Live Voice API conversational turn
      */
     suspend fun liveVoiceInteraction(
         userAudioBytes: ByteArray?,
@@ -348,7 +361,7 @@ class GeminiService(context: Context? = null) {
             })
         }
 
-        val liveModels = listOf("gemini-3.8-live", "gemini-2.5-flash-native-audio-preview-12-2025", "gemini-3.5-flash")
+        val liveModels = listOf("gemini-2.5-flash-native-audio-preview-12-2025", "gemini-2.5-flash", "gemini-3.5-flash")
         for (m in liveModels) {
             try {
                 val rawResponse = callGenerateContent(m, jsonRequest)
@@ -394,6 +407,10 @@ class GeminiService(context: Context? = null) {
             } catch (e: Exception) {
                 lastException = e
                 Log.w("GeminiService", "Model $m failed: ${e.message}, trying next fallback...")
+                // If it's a 403 authorization error, don't keep trying fallback models as all will fail for the same bad key
+                if (e.message?.contains("403") == true) {
+                    throw e
+                }
             }
         }
         throw lastException ?: IllegalStateException("فشلت جميع محاولات الاتصال بالنموذج.")
@@ -402,7 +419,7 @@ class GeminiService(context: Context? = null) {
     private fun callGenerateContent(model: String, requestPayload: JSONObject): String {
         val key = getActiveApiKey()
         if (key.isEmpty() || key == "MY_GEMINI_API_KEY") {
-            throw IllegalStateException("مفتاح Gemini API غير معين! يرجى إدخال مفتاح API الخاص بك من زر الإعدادات ⚙️ أعلى الشاشة أو عبر لوحة الأسرار (Secrets Panel).")
+            throw IllegalStateException("مفتاح Gemini API غير معين! يرجى إدخال مفتاح API الخاص بك من أيقونة المفتاح 🔑 أعلى الشاشة.")
         }
 
         val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$key"
@@ -411,7 +428,6 @@ class GeminiService(context: Context? = null) {
 
         val request = Request.Builder()
             .url(url)
-            .addHeader("x-goog-api-key", key)
             .post(body)
             .build()
 
@@ -427,11 +443,11 @@ class GeminiService(context: Context? = null) {
             }
 
             if (response.code == 403) {
-                throw IllegalStateException("خطأ 403 (غير مصرح به): مفتاح Gemini API غير صالح أو انتهت صلاحيته أو مقيد بنطاق معين.\nالرسالة: $errorMsg\nيرجى تعديل مفتاح API من أيقونة الإعدادات ⚙️ بأعلى الشاشة.")
+                throw IllegalStateException("خطأ 403 (تصريح غير صالح): مفتاح Gemini API غير صالح أو لم يتم تفعيله أو مقيد بنطاق مختلف.\nالرسالة: $errorMsg\nيرجى تعديل مفتاح API من أيقونة 🔑 بأعلى الشاشة.")
             } else if (response.code == 404) {
-                throw IllegalStateException("خطأ 404: النموذج $model غير متاح لهذا المفتاح. ($errorMsg)")
+                throw IllegalStateException("خطأ 404: النموذج $model غير متاح لهذا المفتاح ($errorMsg).")
             } else if (response.code == 429) {
-                throw IllegalStateException("خطأ 429: تم تجاوز الحد المسموح من الطلبات، يرجى الانتظار قليلاً والمحاولة مجدداً.")
+                throw IllegalStateException("خطأ 429: تم تجاوز الحد المسموح من الطلبات مؤقتاً، يرجى المحاولة بعد قليل.")
             }
 
             throw IllegalStateException("فشل الاتصال بـ Gemini ($model): $errorMsg (كود ${response.code})")

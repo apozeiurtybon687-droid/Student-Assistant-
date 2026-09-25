@@ -19,6 +19,12 @@ interface LectureDao {
     @Query("SELECT * FROM lectures WHERE id = :id LIMIT 1")
     suspend fun getLectureById(id: Long): LectureEntity?
 
+    @Query("SELECT COUNT(*) FROM lectures")
+    suspend fun getLectureCount(): Int
+
+    @Query("SELECT * FROM lectures ORDER BY createdAt DESC LIMIT 1")
+    suspend fun getLatestLecture(): LectureEntity?
+
     @Query("""
         SELECT * FROM lectures 
         WHERE title LIKE '%' || :query || '%' 

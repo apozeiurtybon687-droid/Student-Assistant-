@@ -16,6 +16,9 @@ interface FolderDao {
     @Query("SELECT * FROM folders WHERE id = :id LIMIT 1")
     suspend fun getFolderById(id: Long): FolderEntity?
 
+    @Query("SELECT COUNT(*) FROM folders")
+    suspend fun getFolderCount(): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertFolder(folder: FolderEntity): Long
 

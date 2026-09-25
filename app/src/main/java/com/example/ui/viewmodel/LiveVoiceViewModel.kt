@@ -48,8 +48,8 @@ class LiveVoiceViewModel(application: Application) : AndroidViewModel(applicatio
         // Welcome turn
         _conversation.value = listOf(
             LiveVoiceTurn(
-                speaker = "Gemini Live (gemini-3.8-live)",
-                text = "مرحباً بك! أنا مساعدك الصوتي الذكي المباشر عبر نموذج gemini-3.8-live. اضغط على الميكروفون وتحدث معي عن أي استفسار دراسي أو فكرة تحتاج لتوضيح وسأجيبك فوراً بالصوت والكلام."
+                speaker = "Gemini Live",
+                text = "مرحباً بك! أنا مساعدك الصوتي الذكي المباشر. اضغط على الميكروفون وتحدث معي عن أي استفسار دراسي أو فكرة تحتاج لتوضيح وسأجيبك فوراً بالصوت والكلام."
             )
         )
     }

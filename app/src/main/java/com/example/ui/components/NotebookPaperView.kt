@@ -1,10 +1,14 @@
 package com.example.ui.components
 
+import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.speech.RecognizerIntent
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,11 +35,12 @@ import com.example.data.local.LectureEntity
 import com.example.data.local.UserGender
 import com.example.ui.theme.LocalIsDarkMode
 import com.example.ui.theme.LocalUserGender
+import java.util.Locale
 
 /**
  * A realistic university ruled notebook paper view for displaying
- * lectures transcribed, summarized, and explained with Gemini 3.8 Flash.
- * Supports dynamic Male (Blue) / Female (Pink) themes and Day / Night modes.
+ * lectures transcribed, summarized, and explained with Gemini.
+ * Supports manual writing/editing, speech dictation, dynamic Male/Female themes and Day/Night modes.
  */
 @Composable
 fun NotebookPaperView(
@@ -44,6 +49,9 @@ fun NotebookPaperView(
     onSummarizeClick: () -> Unit = {},
     onTranslateClick: () -> Unit = {},
     onSpeakClick: (String) -> Unit = {},
+    onPlayRecordedAudio: (() -> Unit)? = null,
+    isPlayingRecordedAudio: Boolean = false,
+    onContentSaved: ((String, NotebookContentMode) -> Unit)? = null,
     isSpeaking: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -52,13 +60,50 @@ fun NotebookPaperView(
     val userGender = LocalUserGender.current
 
     var currentMode by remember { mutableStateOf(contentMode) }
+    var isEditing by remember { mutableStateOf(false) }
+
+    val rawText = when (currentMode) {
+        NotebookContentMode.TRANSCRIPT -> lecture.transcript
+        NotebookContentMode.SUMMARY -> lecture.summary
+        NotebookContentMode.EXPLANATION -> lecture.explanation
+        NotebookContentMode.TRANSLATION -> lecture.translatedText ?: ""
+    }
+
+    var editedText by remember(rawText, isEditing) { mutableStateOf(rawText) }
 
     val activeText = when (currentMode) {
-        NotebookContentMode.TRANSCRIPT -> lecture.transcript.ifBlank { "لا يوجد تفريغ صوتي مسجل في هذه الورقة بعد." }
+        NotebookContentMode.TRANSCRIPT -> lecture.transcript.ifBlank { "لا يوجد كلام مسجل في هذه الورقة بعد. اضغط على أيقونة القلم ✏️ للكتابة أو استخدم الإملاء الصوتي 🎙️." }
         NotebookContentMode.SUMMARY -> lecture.summary.ifBlank { "لا يوجد تلخيص متاح. اضغط على زر تلخيص الورقة أعلاه." }
         NotebookContentMode.EXPLANATION -> lecture.explanation.ifBlank { "لا يوجد شرح متاح حتى الآن." }
         NotebookContentMode.TRANSLATION -> lecture.translatedText?.ifBlank { "لا توجد ترجمة مسجلة. اضغط على ترجمة الورقة لاختيار لغة." }
             ?: "لا توجد ترجمة مسجلة. اضغط على ترجمة الورقة لاختيار لغة."
+    }
+
+    // Android Speech Recognizer Launcher for direct voice dictation into the notebook paper
+    val speechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spokenWords = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            val recognizedText = spokenWords?.firstOrNull()
+            if (!recognizedText.isNullOrBlank()) {
+                val newContent = if (isEditing) {
+                    if (editedText.isBlank()) recognizedText else "$editedText\n$recognizedText"
+                } else {
+                    if (rawText.isBlank() || rawText.startsWith("🎙️") || rawText.startsWith("📓")) {
+                        recognizedText
+                    } else {
+                        "$rawText\n$recognizedText"
+                    }
+                }
+                if (isEditing) {
+                    editedText = newContent
+                } else {
+                    onContentSaved?.invoke(newContent, currentMode)
+                }
+                Toast.makeText(context, "تمت إضافة الكلام للورقة!", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     // Dynamic Paper styling for Light vs Dark mode and Gender
@@ -143,27 +188,63 @@ fun NotebookPaperView(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = if (userGender == UserGender.FEMALE) "📓 ورقة المحاضرة (طالبة 👩‍🎓)" else "📓 ورقة المحاضرة (طالب 👨‍🎓)",
+                            text = if (userGender == UserGender.FEMALE) "📓 دفتر المحاضرات (طالبة 👩‍🎓)" else "📓 دفتر المحاضرات (طالب 👨‍🎓)",
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
                             color = paperTextColor
                         )
-                        Surface(
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(6.dp)
-                        ) {
-                            Text(
-                                text = "Gemini 3.8 Flash ⚡",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                            )
-                        }
                     }
 
-                    // Share or Copy
-                    Row {
+                    // Action buttons on top-right: Edit pen, Voice dictation, Share, Copy
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Dictate button (speech to text into paper)
+                        IconButton(
+                            onClick = {
+                                try {
+                                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-SA")
+                                        putExtra(RecognizerIntent.EXTRA_PROMPT, "تحدث لإضافة كلامك إلى ورقة المحاضرة...")
+                                    }
+                                    speechLauncher.launch(intent)
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "التعرف على الصوت غير مدعوم على هذا الجهاز", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Mic,
+                                contentDescription = "إملاء صوتي في الورقة",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        // Edit / Pen Button
+                        IconButton(
+                            onClick = {
+                                if (isEditing) {
+                                    // Save changes
+                                    onContentSaved?.invoke(editedText, currentMode)
+                                    isEditing = false
+                                    Toast.makeText(context, "تم حفظ ما كتبته في الورقة! 📝", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    editedText = rawText
+                                    isEditing = true
+                                }
+                            },
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isEditing) Icons.Default.Check else Icons.Default.Edit,
+                                contentDescription = if (isEditing) "حفظ ما كُتب" else "كتابة وتعديل في الورقة",
+                                tint = if (isEditing) Color(0xFF10B981) else MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        // Share
                         IconButton(
                             onClick = {
                                 val sendIntent = Intent().apply {
@@ -178,7 +259,7 @@ fun NotebookPaperView(
                                 val shareIntent = Intent.createChooser(sendIntent, "مشاركة ورقة المحاضرة")
                                 context.startActivity(shareIntent)
                             },
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(34.dp)
                         ) {
                             Icon(
                                 Icons.Default.Share,
@@ -188,14 +269,15 @@ fun NotebookPaperView(
                             )
                         }
 
+                        // Copy
                         IconButton(
                             onClick = {
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                val clip = ClipData.newPlainText("ورقة المحاضرة", activeText)
+                                val clip = ClipData.newPlainText("ورقة المحاضرة", if (isEditing) editedText else activeText)
                                 clipboard.setPrimaryClip(clip)
                                 Toast.makeText(context, "تم نسخ محتوى الورقة!", Toast.LENGTH_SHORT).show()
                             },
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(34.dp)
                         ) {
                             Icon(
                                 Icons.Default.ContentCopy,
@@ -211,7 +293,7 @@ fun NotebookPaperView(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp, bottom = 12.dp),
+                        .padding(top = 6.dp, bottom = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(
@@ -221,7 +303,7 @@ fun NotebookPaperView(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "المجلد: ${lecture.folderName}",
+                        text = "المادة: ${lecture.folderName}",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                     )
@@ -229,17 +311,88 @@ fun NotebookPaperView(
 
                 HorizontalDivider(color = paperBorderColor, thickness = 1.dp)
 
+                // Verified Recorded Audio & Paper Status Banner
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isPlayingRecordedAudio) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                    else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp, bottom = 4.dp)
+                        .testTag("recorded_audio_paper_banner")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = if (isPlayingRecordedAudio) Icons.Default.GraphicEq else Icons.Default.Mic,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = "📝 الورقة مملوءة بما تم تسجيله صوتياً",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    text = if (isPlayingRecordedAudio) "جاري تشغيل الصوت المسجل متزامناً مع الورقة 🔊"
+                                    else "المدة: ${lecture.durationSeconds} ثانية • النص مكتوب ومطابق للصوت",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                )
+                            }
+                        }
+
+                        if (!lecture.audioPath.isNullOrEmpty() && onPlayRecordedAudio != null) {
+                            FilledTonalButton(
+                                onClick = onPlayRecordedAudio,
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.testTag("play_from_paper_button")
+                            ) {
+                                Icon(
+                                    imageVector = if (isPlayingRecordedAudio) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (isPlayingRecordedAudio) "إيقاف" else "استمع للصوت",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Quick Mode Switcher on the Paper
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 10.dp),
+                        .padding(vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     FilterChip(
                         selected = currentMode == NotebookContentMode.TRANSCRIPT,
-                        onClick = { currentMode = NotebookContentMode.TRANSCRIPT },
-                        label = { Text("كلام الأستاذ (المفرّغ)", fontSize = 11.sp) },
+                        onClick = {
+                            if (isEditing) {
+                                onContentSaved?.invoke(editedText, currentMode)
+                                isEditing = false
+                            }
+                            currentMode = NotebookContentMode.TRANSCRIPT
+                        },
+                        label = { Text("كلام الأستاذ المسجل (المفرغ في الورقة)", fontSize = 11.sp) },
                         leadingIcon = { Icon(Icons.Default.RecordVoiceOver, contentDescription = null, modifier = Modifier.size(14.dp)) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -248,7 +401,13 @@ fun NotebookPaperView(
                     )
                     FilterChip(
                         selected = currentMode == NotebookContentMode.SUMMARY,
-                        onClick = { currentMode = NotebookContentMode.SUMMARY },
+                        onClick = {
+                            if (isEditing) {
+                                onContentSaved?.invoke(editedText, currentMode)
+                                isEditing = false
+                            }
+                            currentMode = NotebookContentMode.SUMMARY
+                        },
                         label = { Text("الملخص والملاحظات", fontSize = 11.sp) },
                         leadingIcon = { Icon(Icons.AutoMirrored.Filled.FormatListBulleted, contentDescription = null, modifier = Modifier.size(14.dp)) },
                         colors = FilterChipDefaults.filterChipColors(
@@ -257,10 +416,16 @@ fun NotebookPaperView(
                         )
                     )
                     FilterChip(
-                        selected = currentMode == NotebookContentMode.TRANSLATION,
-                        onClick = { currentMode = NotebookContentMode.TRANSLATION },
-                        label = { Text("الترجمة", fontSize = 11.sp) },
-                        leadingIcon = { Icon(Icons.Default.Translate, contentDescription = null, modifier = Modifier.size(14.dp)) },
+                        selected = currentMode == NotebookContentMode.EXPLANATION,
+                        onClick = {
+                            if (isEditing) {
+                                onContentSaved?.invoke(editedText, currentMode)
+                                isEditing = false
+                            }
+                            currentMode = NotebookContentMode.EXPLANATION
+                        },
+                        label = { Text("الشرح", fontSize = 11.sp) },
+                        leadingIcon = { Icon(Icons.Default.School, contentDescription = null, modifier = Modifier.size(14.dp)) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
                             selectedLabelColor = MaterialTheme.colorScheme.onTertiaryContainer
@@ -272,7 +437,7 @@ fun NotebookPaperView(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 12.dp),
+                        .padding(bottom = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     // Summarize Button
@@ -282,9 +447,9 @@ fun NotebookPaperView(
                             .weight(1f)
                             .testTag("notebook_summarize_button"),
                         shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
                     ) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("تلخيص الورقة", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     }
@@ -296,26 +461,26 @@ fun NotebookPaperView(
                             .weight(1f)
                             .testTag("notebook_translate_button"),
                         shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
                     ) {
-                        Icon(Icons.Default.GTranslate, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.secondary)
+                        Icon(Icons.Default.GTranslate, contentDescription = null, modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.secondary)
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("ترجمة الورقة", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
                     }
 
                     // Speak Aloud Button
                     OutlinedButton(
-                        onClick = { onSpeakClick(activeText) },
+                        onClick = { onSpeakClick(if (isEditing) editedText else activeText) },
                         modifier = Modifier
                             .weight(1f)
                             .testTag("notebook_speak_button"),
                         shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
                     ) {
                         Icon(
                             imageVector = if (isSpeaking) Icons.Default.Stop else Icons.AutoMirrored.Filled.VolumeUp,
                             contentDescription = null,
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(15.dp),
                             tint = MaterialTheme.colorScheme.tertiary
                         )
                         Spacer(modifier = Modifier.width(4.dp))
@@ -323,18 +488,101 @@ fun NotebookPaperView(
                     }
                 }
 
-                // The Written Text on the Ruled Paper
-                Text(
-                    text = activeText,
-                    fontSize = 15.sp,
-                    lineHeight = 32.sp, // Aligned with the 32dp ruled lines
-                    fontWeight = FontWeight.Normal,
-                    color = paperTextColor,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp, bottom = 16.dp)
-                        .testTag("notebook_paper_text_content")
-                )
+                // If in Edit Mode, show editable text area with save button
+                if (isEditing) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp, bottom = 12.dp)
+                    ) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "✍️ وضع الكتابة والتدوين المباشر في الورقة",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    TextButton(
+                                        onClick = { isEditing = false },
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Text("إلغاء", fontSize = 11.sp)
+                                    }
+                                    Button(
+                                        onClick = {
+                                            onContentSaved?.invoke(editedText, currentMode)
+                                            isEditing = false
+                                            Toast.makeText(context, "تم حفظ التعديلات في دفتر المحاضرات!", Toast.LENGTH_SHORT).show()
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Text("حفظ", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = editedText,
+                            onValueChange = { editedText = it },
+                            placeholder = { Text("اكتب ملاحظاتك ونقاط المحاضرة هنا...", color = paperTextColor.copy(alpha = 0.5f)) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 160.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = paperTextColor,
+                                unfocusedTextColor = paperTextColor,
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = paperBorderColor
+                            )
+                        )
+                    }
+                } else {
+                    // Display Written Text on the Ruled Paper
+                    Text(
+                        text = activeText,
+                        fontSize = 15.sp,
+                        lineHeight = 32.sp, // Aligned with the 32dp ruled lines
+                        fontWeight = FontWeight.Normal,
+                        color = paperTextColor,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp, bottom = 16.dp)
+                            .testTag("notebook_paper_text_content")
+                    )
+
+                    // Quick prompt to write if paper has placeholder or default text
+                    if (rawText.isBlank() || rawText.startsWith("🎙️") || rawText.startsWith("📓")) {
+                        OutlinedButton(
+                            onClick = {
+                                editedText = rawText
+                                isEditing = true
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.BorderColor, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("كتابة وتدوين ملاحظات يدوياً في هذه الورقة ✍️", fontSize = 12.sp)
+                        }
+                    }
+                }
             }
         }
     }

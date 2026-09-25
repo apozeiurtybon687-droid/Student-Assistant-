@@ -47,13 +47,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     // Available models according to feature specifications
     val availableModels = listOf(
-        "models/gemini-3.8-flash" to "Gemini 3.8 Flash (النموذج الافتراضي للدردشة)",
-        "gemini-3.5-flash" to "Gemini 3.5 Flash (للمهام العامة)",
+        "gemini-2.5-flash" to "Gemini 2.5 Flash (سريع ودقيق وموصى به)",
+        "gemini-3.5-flash" to "Gemini 3.5 Flash (للمهام العامة والتفصيلية)",
         "gemini-3.1-pro-preview" to "Gemini 3.1 Pro (للمهام والتحليلات المعقدة)",
-        "gemini-3.1-flash-lite-preview" to "Gemini 3.1 Flash Lite (للاستجابة السريعة جداً)"
+        "gemini-flash-latest" to "Gemini Flash Latest (أحدث إصدار فلاش)"
     )
 
-    private val _selectedModel = MutableStateFlow("models/gemini-3.8-flash")
+    private val _selectedModel = MutableStateFlow("gemini-2.5-flash")
     val selectedModel: StateFlow<String> = _selectedModel.asStateFlow()
 
     private val _selectedRole = MutableStateFlow(ChatRolePreset.PROFESSOR)

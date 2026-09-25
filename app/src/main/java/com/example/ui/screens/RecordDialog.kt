@@ -57,6 +57,7 @@ fun RecordLectureBottomSheet(
     var lectureTitle by remember { mutableStateOf("") }
     var selectedFolder by remember { mutableStateOf<FolderEntity?>(folders.firstOrNull()) }
     var autoAnalyzeWithGemini by remember { mutableStateOf(true) }
+    var quickNotes by remember { mutableStateOf("") }
 
     val isRecording by viewModel.recorder.isRecording.collectAsState()
     val isPaused by viewModel.recorder.isPaused.collectAsState()
@@ -239,6 +240,19 @@ fun RecordLectureBottomSheet(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
+                // Quick notes field during or before recording
+                OutlinedTextField(
+                    value = quickNotes,
+                    onValueChange = { quickNotes = it },
+                    label = { Text("ملاحظات للكتابة في الورقة مباشرة (اختياري)") },
+                    placeholder = { Text("اكتب أي نقطة رئيسية ذكرها الدكتور...") },
+                    maxLines = 2,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("quick_notes_input")
+                )
+
                 // Checkbox: Auto analyze with Gemini
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -250,17 +264,16 @@ fun RecordLectureBottomSheet(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "كتابة المحاضرة في ورقة وتلخيصها عبر Gemini 3.8 Flash ✨",
+                        text = "كتابة المحاضرة في الورقة وتلخيصها بالذكاء الاصطناعي ✨",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
 
                 // Control Buttons Row
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     if (!isRecording) {
                         Button(
@@ -268,55 +281,87 @@ fun RecordLectureBottomSheet(
                                 viewModel.startRecording(lectureTitle.ifBlank { "محاضرة جديدة" })
                             },
                             modifier = Modifier
-                                .weight(1f)
+                                .fillMaxWidth()
                                 .height(52.dp)
                                 .testTag("start_recording_button"),
                             shape = RoundedCornerShape(14.dp)
                         ) {
-                            Icon(Icons.Default.FiberManualRecord, contentDescription = null)
+                            Icon(Icons.Default.FiberManualRecord, contentDescription = null, tint = Color.Red)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("بدء الاستماع والتسجيل", fontWeight = FontWeight.Bold)
-                        }
-                    } else {
-                        // Pause / Resume button
-                        OutlinedButton(
-                            onClick = {
-                                if (isPaused) viewModel.resumeRecording() else viewModel.pauseRecording()
-                            },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(52.dp)
-                                .testTag("pause_resume_button"),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
-                                contentDescription = null
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(if (isPaused) "استئناف" else "إيقاف مؤقت")
+                            Text("بدء الاستماع والتسجيل (عبر الميكروفون)", fontWeight = FontWeight.Bold)
                         }
 
-                        // Stop & Save button
-                        Button(
+                        // Instant Default Recorded Voice button
+                        FilledTonalButton(
                             onClick = {
-                                viewModel.stopRecording(
-                                    lectureTitle = lectureTitle,
-                                    selectedFolder = selectedFolder,
-                                    autoAnalyze = autoAnalyzeWithGemini
-                                )
-                                onDismiss()
+                                viewModel.createDefaultSampleLecture(autoSelect = true) {
+                                    onDismiss()
+                                }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             modifier = Modifier
-                                .weight(1.3f)
-                                .height(52.dp)
-                                .testTag("finish_save_button"),
-                            shape = RoundedCornerShape(14.dp)
+                                .fillMaxWidth()
+                                .height(50.dp)
+                                .testTag("default_recorded_voice_button"),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer
+                            )
                         ) {
-                            Icon(Icons.Default.Check, contentDescription = null)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("إنهاء وحفظ", fontWeight = FontWeight.Bold)
+                            Icon(Icons.Default.GraphicEq, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "تسجيل بصوت افتراضي مسجل 🎧 (تعبئة الورقة فوراً)",
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Pause / Resume button
+                            OutlinedButton(
+                                onClick = {
+                                    if (isPaused) viewModel.resumeRecording() else viewModel.pauseRecording()
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(52.dp)
+                                    .testTag("pause_resume_button"),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                                    contentDescription = null
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(if (isPaused) "استئناف" else "إيقاف مؤقت")
+                            }
+
+                            // Stop & Save button
+                            Button(
+                                onClick = {
+                                    viewModel.stopRecording(
+                                        lectureTitle = lectureTitle,
+                                        selectedFolder = selectedFolder,
+                                        autoAnalyze = autoAnalyzeWithGemini,
+                                        userNotes = quickNotes
+                                    )
+                                    onDismiss()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                modifier = Modifier
+                                    .weight(1.3f)
+                                    .height(52.dp)
+                                    .testTag("finish_save_button"),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Icon(Icons.Default.Check, contentDescription = null)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("إنهاء وحفظ في الورقة", fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }

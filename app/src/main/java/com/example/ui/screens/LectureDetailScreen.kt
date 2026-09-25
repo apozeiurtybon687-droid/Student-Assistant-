@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.local.LectureEntity
 import com.example.data.local.ThemePreferences
+import com.example.ui.components.NotebookContentMode
 import com.example.ui.components.NotebookPaperView
 import com.example.ui.viewmodel.LectureViewModel
 import java.text.SimpleDateFormat
@@ -50,6 +51,14 @@ fun LectureDetailScreen(
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     var showTranslateDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
+    var showApiKeyDialog by remember { mutableStateOf(false) }
+
+    if (showApiKeyDialog) {
+        ApiKeySettingsDialog(
+            apiKeyManager = viewModel.apiKeyManager,
+            onDismiss = { showApiKeyDialog = false }
+        )
+    }
 
     if (showThemeDialog) {
         ThemeAndProfileDialog(
@@ -180,56 +189,31 @@ fun LectureDetailScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f))
                 ) {
                     Column(
                         modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        // Title and speed chips
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                IconButton(
-                                    onClick = {
-                                        if (totalDurationMs == 0) {
-                                            viewModel.playLectureAudio(lecture.audioPath)
-                                        } else {
-                                            viewModel.togglePlayPause()
-                                        }
-                                    },
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.primary)
-                                        .testTag("audio_play_pause_button")
-                                ) {
-                                    Icon(
-                                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                        contentDescription = if (isPlaying) "إيقاف مؤقت" else "تشغيل التسجيل",
-                                        tint = Color.White
-                                    )
-                                }
-
-                                Column {
-                                    Text(
-                                        text = "التسجيل الصوتي للأستاذ 🎙️",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    val currentSec = currentPositionMs / 1000
-                                    val totalSec = if (totalDurationMs > 0) totalDurationMs / 1000 else lecture.durationSeconds
-                                    Text(
-                                        text = String.format("%02d:%02d / %02d:%02d", currentSec / 60, currentSec % 60, totalSec / 60, totalSec % 60),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                            Column {
+                                Text(
+                                    text = "التسجيل الصوتي للأستاذ 🎙️",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                val currentSec = currentPositionMs / 1000
+                                val totalSec = if (totalDurationMs > 0) totalDurationMs / 1000 else lecture.durationSeconds
+                                Text(
+                                    text = String.format("%02d:%02d / %02d:%02d", currentSec / 60, currentSec % 60, totalSec / 60, totalSec % 60),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
 
                             // Speed selection chips
@@ -248,8 +232,7 @@ fun LectureDetailScreen(
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                             color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
-                                            modifier = Modifier
-                                                .padding(horizontal = 6.dp, vertical = 4.dp)
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
                                         )
                                     }
                                 }
@@ -263,9 +246,95 @@ fun LectureDetailScreen(
                             valueRange = 0f..(if (totalDurationMs > 0) totalDurationMs.toFloat() else 1f),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(28.dp)
+                                .height(24.dp)
                                 .testTag("audio_seekbar")
                         )
+
+                        // Full Audio Controls: Replay from start, Rewind 10s, Play/Pause, Forward 10s, Stop
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Replay from beginning button
+                            FilledTonalIconButton(
+                                onClick = { viewModel.replayFromBeginning(lecture.audioPath) },
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .testTag("audio_replay_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Replay,
+                                    contentDescription = "إعادة من البداية",
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+
+                            // Rewind 10 seconds button
+                            FilledTonalIconButton(
+                                onClick = { viewModel.seekBackward(10) },
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .testTag("audio_rewind_10_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Replay10,
+                                    contentDescription = "تأخير 10 ثوانٍ",
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+
+                            // Play / Pause (Large Primary Button)
+                            IconButton(
+                                onClick = {
+                                    if (totalDurationMs == 0) {
+                                        viewModel.playLectureAudio(lecture.audioPath)
+                                    } else {
+                                        viewModel.togglePlayPause(lecture.audioPath)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .size(52.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary)
+                                    .testTag("audio_play_pause_button")
+                            ) {
+                                Icon(
+                                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    contentDescription = if (isPlaying) "إيقاف مؤقت" else "تشغيل التسجيل",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(30.dp)
+                                )
+                            }
+
+                            // Forward 10 seconds button
+                            FilledTonalIconButton(
+                                onClick = { viewModel.seekForward(10) },
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .testTag("audio_forward_10_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Forward10,
+                                    contentDescription = "تقديم 10 ثوانٍ",
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+
+                            // Stop button
+                            FilledTonalIconButton(
+                                onClick = { viewModel.stopAudio() },
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .testTag("audio_stop_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Stop,
+                                    contentDescription = "إيقاف التسجيل",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -329,7 +398,53 @@ fun LectureDetailScreen(
                 ) {
                     Icon(Icons.Default.SmartToy, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("اسأل Gemini 3.8", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("اسأل الذكاء الاصطناعي", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            // Notice Banner if API Key is not set or invalid (to solve 403 errors directly)
+            if (!viewModel.apiKeyManager.hasValidKey()) {
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.VpnKey, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                            Column {
+                                Text(
+                                    text = "مفتاح Gemini API غير معين (سبب خطأ 403)",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                Text(
+                                    text = "اضغط لإدخال مفتاحك المجاني وتفعيل التفريغ والتحليل",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                        }
+                        Button(
+                            onClick = { showApiKeyDialog = true },
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text("ضبط المفتاح", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
 
@@ -384,11 +499,21 @@ fun LectureDetailScreen(
                         lecture = lecture,
                         onSummarizeClick = {
                             viewModel.reanalyzeLecture(lecture)
-                            Toast.makeText(context, "جاري إعادة التلخيص عبر Gemini 3.8 Flash...", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "جاري تحليل وتلخيص المحاضرة عبر الذكاء الاصطناعي...", Toast.LENGTH_SHORT).show()
                         },
                         onTranslateClick = { showTranslateDialog = true },
                         onSpeakClick = { text ->
                             if (isSpeaking) viewModel.stopSpeaking() else viewModel.speakText(text)
+                        },
+                        onPlayRecordedAudio = { viewModel.togglePlayPause(lecture.audioPath) },
+                        isPlayingRecordedAudio = isPlaying,
+                        onContentSaved = { newText, mode ->
+                            when (mode) {
+                                NotebookContentMode.TRANSCRIPT -> viewModel.updateLecturePaperContent(lecture, newTranscript = newText)
+                                NotebookContentMode.SUMMARY -> viewModel.updateLecturePaperContent(lecture, newTranscript = lecture.transcript, newSummary = newText)
+                                NotebookContentMode.EXPLANATION -> viewModel.updateLecturePaperContent(lecture, newTranscript = lecture.transcript, newKeyPoints = newText)
+                                NotebookContentMode.TRANSLATION -> viewModel.updateLecturePaperContent(lecture, newTranscript = lecture.transcript)
+                            }
                         },
                         isSpeaking = isSpeaking
                     )
