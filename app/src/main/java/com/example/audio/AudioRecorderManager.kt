@@ -3,7 +3,6 @@ package com.example.audio
 import android.content.Context
 import android.media.MediaRecorder
 import android.os.Build
-import android.os.SystemClock
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,12 +15,22 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 
+/**
+ * Singleton AudioRecorderManager that manages MediaRecorder recording state,
+ * shared seamlessly between the UI (LectureViewModel) and background AudioRecordingService.
+ */
 class AudioRecorderManager(private val context: Context) {
 
     private var recorder: MediaRecorder? = null
-    private var currentOutputFile: File? = null
+    var currentOutputFile: File? = null
+        private set
     private var timerJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.Main)
+
+    var currentLectureTitle: String = "محاضرة جديدة"
+    var currentFolderId: Long? = null
+    var currentFolderName: String = "عام"
+    var currentQuickNotes: String = ""
 
     private val _isRecording = MutableStateFlow(false)
     val isRecording: StateFlow<Boolean> = _isRecording.asStateFlow()
@@ -35,9 +44,21 @@ class AudioRecorderManager(private val context: Context) {
     private val _maxAmplitude = MutableStateFlow(0)
     val maxAmplitude: StateFlow<Int> = _maxAmplitude.asStateFlow()
 
+    companion object {
+        @Volatile
+        private var instance: AudioRecorderManager? = null
+
+        fun getInstance(context: Context): AudioRecorderManager {
+            return instance ?: synchronized(this) {
+                instance ?: AudioRecorderManager(context.applicationContext).also { instance = it }
+            }
+        }
+    }
+
     fun startRecording(customName: String): File {
         stopRecording()
 
+        currentLectureTitle = customName.ifBlank { "محاضرة جديدة" }
         val dir = File(context.filesDir, "recordings").apply { if (!exists()) mkdirs() }
         val safeName = customName.replace(Regex("[^a-zA-Z0-9_\\u0600-\\u06FF]"), "_")
         val file = File(dir, "lecture_${safeName}_${System.currentTimeMillis()}.m4a")

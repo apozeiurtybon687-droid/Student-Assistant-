@@ -103,7 +103,9 @@ fun AudioTranscriptionDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 12.dp)
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 24.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -221,9 +223,9 @@ fun AudioTranscriptionDialog(
                 )
 
                 // Recording Actions Row
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     if (!isRecording) {
                         Button(
@@ -234,14 +236,19 @@ fun AudioTranscriptionDialog(
                                 recordedAudioFile = file
                             },
                             modifier = Modifier
-                                .weight(1f)
-                                .height(50.dp)
+                                .fillMaxWidth()
+                                .height(56.dp)
                                 .testTag("start_transcribe_record_button"),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFDC2626),
+                                contentColor = Color.White
+                            ),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
                         ) {
-                            Icon(Icons.Default.FiberManualRecord, contentDescription = null, tint = Color.Red)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("تحدث الآن بالميكروفون", fontWeight = FontWeight.Bold)
+                            Icon(Icons.Default.FiberManualRecord, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("تحدث الآن بالميكروفون للتفريغ 🎙️", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                         }
 
                         // Sample Voice Test Button
@@ -267,14 +274,14 @@ fun AudioTranscriptionDialog(
                                 }
                             },
                             modifier = Modifier
-                                .weight(1f)
+                                .fillMaxWidth()
                                 .height(50.dp)
                                 .testTag("sample_voice_transcribe_button"),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(14.dp)
                         ) {
                             Icon(Icons.Default.GraphicEq, contentDescription = null)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("تجربة صوت مسجل", fontSize = 12.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("تجربة صوت مسجل جاهز 🎧", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                     } else {
                         Button(
@@ -309,13 +316,18 @@ fun AudioTranscriptionDialog(
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(50.dp)
+                                .height(58.dp)
                                 .testTag("stop_and_transcribe_button"),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFDC2626),
+                                contentColor = Color.White
+                            ),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp)
                         ) {
-                            Icon(Icons.Default.Check, contentDescription = null)
+                            Icon(Icons.Default.Stop, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("إيقاف وتفريغ الصوت (gemini-3.5-transcribe)", fontWeight = FontWeight.Bold)
+                            Text("⏹️ إيقاف وتفريغ الصوت (gemini-3.5-transcribe)", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

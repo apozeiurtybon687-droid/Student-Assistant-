@@ -260,13 +260,14 @@ fun LectureDetailScreen(
                             FilledTonalIconButton(
                                 onClick = { viewModel.replayFromBeginning(lecture.audioPath) },
                                 modifier = Modifier
-                                    .size(42.dp)
+                                    .size(46.dp)
                                     .testTag("audio_replay_button")
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Replay,
                                     contentDescription = "إعادة من البداية",
-                                    tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
 
@@ -274,13 +275,14 @@ fun LectureDetailScreen(
                             FilledTonalIconButton(
                                 onClick = { viewModel.seekBackward(10) },
                                 modifier = Modifier
-                                    .size(42.dp)
+                                    .size(46.dp)
                                     .testTag("audio_rewind_10_button")
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Replay10,
                                     contentDescription = "تأخير 10 ثوانٍ",
-                                    tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
 
@@ -294,7 +296,7 @@ fun LectureDetailScreen(
                                     }
                                 },
                                 modifier = Modifier
-                                    .size(52.dp)
+                                    .size(58.dp)
                                     .clip(CircleShape)
                                     .background(MaterialTheme.colorScheme.primary)
                                     .testTag("audio_play_pause_button")
@@ -303,7 +305,7 @@ fun LectureDetailScreen(
                                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                                     contentDescription = if (isPlaying) "إيقاف مؤقت" else "تشغيل التسجيل",
                                     tint = Color.White,
-                                    modifier = Modifier.size(30.dp)
+                                    modifier = Modifier.size(34.dp)
                                 )
                             }
 
@@ -311,27 +313,33 @@ fun LectureDetailScreen(
                             FilledTonalIconButton(
                                 onClick = { viewModel.seekForward(10) },
                                 modifier = Modifier
-                                    .size(42.dp)
+                                    .size(46.dp)
                                     .testTag("audio_forward_10_button")
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Forward10,
                                     contentDescription = "تقديم 10 ثوانٍ",
-                                    tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
 
-                            // Stop button
+                            // Stop button (High Contrast Red)
                             FilledTonalIconButton(
                                 onClick = { viewModel.stopAudio() },
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = Color(0xFFFEE2E2),
+                                    contentColor = Color(0xFFDC2626)
+                                ),
                                 modifier = Modifier
-                                    .size(42.dp)
+                                    .size(46.dp)
                                     .testTag("audio_stop_button")
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Stop,
                                     contentDescription = "إيقاف التسجيل",
-                                    tint = MaterialTheme.colorScheme.error
+                                    tint = Color(0xFFDC2626),
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
                         }

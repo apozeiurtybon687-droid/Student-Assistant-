@@ -36,7 +36,7 @@ class LectureViewModel(application: Application) : AndroidViewModel(application)
     private val geminiService = GeminiService(application)
     val repository = LectureRepository(db, geminiService)
 
-    val recorder = AudioRecorderManager(application)
+    val recorder = com.example.audio.AudioRecorderManager.getInstance(application)
     val player = AudioPlayerManager(application)
     val tts = TtsManager(application, geminiService)
 
@@ -180,18 +180,37 @@ class LectureViewModel(application: Application) : AndroidViewModel(application)
         tts.stop()
     }
 
-    // Recording operations
-    fun startRecording(name: String) {
-        val file = recorder.startRecording(name.ifBlank { "محاضرة_جديدة" })
-        _tempRecordedFile.value = file
+    // Recording operations with Background Service & Notification
+    fun startRecording(
+        name: String,
+        selectedFolder: FolderEntity? = null,
+        userNotes: String = ""
+    ) {
+        val safeTitle = name.ifBlank { "محاضرة ${SimpleDateFormat("dd-MM hh:mm", Locale.getDefault()).format(Date())}" }
+        val folderName = selectedFolder?.name ?: "علوم الحاسب والبرمجة"
+
+        recorder.currentLectureTitle = safeTitle
+        recorder.currentFolderId = selectedFolder?.id ?: 1L
+        recorder.currentFolderName = folderName
+        recorder.currentQuickNotes = userNotes
+
+        // Start background service with persistent notification
+        com.example.audio.AudioRecordingService.start(
+            context = getApplication(),
+            title = safeTitle,
+            folderId = selectedFolder?.id ?: 1L,
+            folderName = folderName,
+            quickNotes = userNotes
+        )
+        _tempRecordedFile.value = recorder.currentOutputFile
     }
 
     fun pauseRecording() {
-        recorder.pauseRecording()
+        com.example.audio.AudioRecordingService.pause(getApplication())
     }
 
     fun resumeRecording() {
-        recorder.resumeRecording()
+        com.example.audio.AudioRecordingService.resume(getApplication())
     }
 
     fun stopRecording(
@@ -200,6 +219,9 @@ class LectureViewModel(application: Application) : AndroidViewModel(application)
         autoAnalyze: Boolean = true,
         userNotes: String = ""
     ) {
+        // Cancel/stop the background service notification
+        com.example.audio.AudioRecordingService.cancel(getApplication())
+
         val rawFile = recorder.stopRecording() ?: _tempRecordedFile.value
         val actualDuration = recorder.durationSeconds.value
 

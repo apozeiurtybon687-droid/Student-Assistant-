@@ -226,12 +226,16 @@ fun HomeScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { showRecordSheet = true },
-                icon = { Icon(Icons.Default.Mic, contentDescription = null) },
-                text = { Text("تسجيل محاضرة", fontWeight = FontWeight.Bold) },
+                icon = { Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(24.dp)) },
+                text = { Text("تسجيل محاضرة 🎙️", fontWeight = FontWeight.Bold, fontSize = 15.sp) },
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = Color.White,
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.testTag("fab_record_lecture")
+                shape = RoundedCornerShape(20.dp),
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .padding(bottom = 8.dp)
+                    .testTag("fab_record_lecture")
             )
         }
     ) { innerPadding ->
@@ -279,6 +283,66 @@ fun HomeScreen(
             }
 
             // Status bar for ongoing analysis
+            val isRecordingNow by viewModel.recorder.isRecording.collectAsState()
+            val isRecordingPaused by viewModel.recorder.isPaused.collectAsState()
+            val recordingSeconds by viewModel.recorder.durationSeconds.collectAsState()
+
+            if (isRecordingNow) {
+                Surface(
+                    color = Color(0xFFDC2626),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showRecordSheet = true }
+                        .testTag("active_recording_top_banner")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                Icons.Default.FiberManualRecord,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Column {
+                                val minutes = recordingSeconds / 60
+                                val seconds = recordingSeconds % 60
+                                Text(
+                                    text = if (isRecordingPaused) "⏸️ التسجيل متوقف مؤقتاً (${String.format("%02d:%02d", minutes, seconds)})"
+                                    else "🔴 جاري التسجيل في الخلفية (${String.format("%02d:%02d", minutes, seconds)})",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                                Text(
+                                    text = "يتم التسجيل بالخلفية • اضغط للتحكم أو الإيقاف والحفظ",
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+
+                        Button(
+                            onClick = { showRecordSheet = true },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.White,
+                                contentColor = Color(0xFFDC2626)
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text("إيقاف / تحكم", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
             AnimatedVisibility(visible = isAnalyzing) {
                 Surface(
                     color = MaterialTheme.colorScheme.primaryContainer,

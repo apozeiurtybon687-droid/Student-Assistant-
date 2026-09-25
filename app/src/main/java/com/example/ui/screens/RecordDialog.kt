@@ -4,11 +4,15 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -36,7 +40,7 @@ fun RecordLectureBottomSheet(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    var hasPermission by remember {
+    var hasAudioPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
                 context,
@@ -45,12 +49,13 @@ fun RecordLectureBottomSheet(
         )
     }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        hasPermission = isGranted
-        if (isGranted) {
-            viewModel.startRecording("محاضرة جديدة")
+    val permissionsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { perms ->
+        val audioGranted = perms[Manifest.permission.RECORD_AUDIO] ?: false
+        hasAudioPermission = audioGranted
+        if (audioGranted) {
+            // Permission granted
         }
     }
 
@@ -62,7 +67,6 @@ fun RecordLectureBottomSheet(
     val isRecording by viewModel.recorder.isRecording.collectAsState()
     val isPaused by viewModel.recorder.isPaused.collectAsState()
     val durationSeconds by viewModel.recorder.durationSeconds.collectAsState()
-    val amplitude by viewModel.recorder.maxAmplitude.collectAsState()
 
     // Pulse animation for recording microphone
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -70,7 +74,7 @@ fun RecordLectureBottomSheet(
         initialValue = 1f,
         targetValue = if (isRecording && !isPaused) 1.25f else 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = FastOutSlowInEasing),
+            animation = tween(750, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulseScale"
@@ -90,25 +94,69 @@ fun RecordLectureBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 16.dp),
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 24.dp)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(
-                text = "تسجيل محاضرة وكتابتها في ورقة 🎙️📝",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            // Header
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = if (isRecording) Icons.Default.FiberManualRecord else Icons.Default.Mic,
+                    contentDescription = null,
+                    tint = if (isRecording) Color(0xFFDC2626) else MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Text(
+                    text = if (isRecording) "جاري تسجيل المحاضرة الآن 🔴" else "تسجيل محاضرة جديدة 🎙️📝",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
 
             Text(
-                text = "يستمع التطبيق لصوت الأستاذ ويكتبه مباشرة في ورقة دفترية مع إمكانية التلخيص والترجمة عبر Gemini 3.8 Flash ⚡",
+                text = if (isRecording)
+                    "يتم الآن تسجيل الصوت بجودة عالية، اضغط على زر الإيقاف والحفظ بالأسفل لإنهاء التسجيل وتعبئة الورقة فوراً."
+                else
+                    "اضغط على زر بدء التسجيل بالميكروفون أو اختر تسجيل بصوت افتراضي لتجربة فورية.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
 
-            if (!hasPermission) {
+            // Background Recording & Notification Control Banner
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.NotificationsActive,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "التسجيل يعمل في الخلفية حتى بعد الخروج من التطبيق مع أزرار تحكم كاملة في شريط الإشعارات 📲",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+
+            if (!hasAudioPermission) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                     shape = RoundedCornerShape(16.dp),
@@ -117,181 +165,236 @@ fun RecordLectureBottomSheet(
                     Column(
                         modifier = Modifier.padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "يرجى منح إذن الميكروفون لتسجيل صوت المحاضرة",
+                            text = "يرجى منح إذن الميكروفون والإشعارات لتسجيل صوت المحاضرة في الخلفية",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onErrorContainer,
                             textAlign = TextAlign.Center
                         )
                         Button(
-                            onClick = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+                            onClick = {
+                                val perms = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                                    arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
+                                } else {
+                                    arrayOf(Manifest.permission.RECORD_AUDIO)
+                                }
+                                permissionsLauncher.launch(perms)
+                            },
                             modifier = Modifier.testTag("grant_mic_permission_button")
                         ) {
-                            Text("منح الإذن الآن")
+                            Text("منح الأذونات الآن")
                         }
                     }
                 }
             } else {
-                // Lecture Name Field
-                OutlinedTextField(
-                    value = lectureTitle,
-                    onValueChange = { lectureTitle = it },
-                    label = { Text("اسم أو عنوان المحاضرة") },
-                    placeholder = { Text("مثال: المحاضرة 3 - الذكاء الاصطناعي") },
-                    leadingIcon = { Icon(Icons.Default.School, contentDescription = null) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("lecture_title_input")
-                )
-
-                // Folder Selection Chips
-                if (folders.isNotEmpty()) {
+                // If NOT recording: Show Title input and folder selector
+                AnimatedVisibility(visible = !isRecording) {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            text = "اختر المجلد / المادة:",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        OutlinedTextField(
+                            value = lectureTitle,
+                            onValueChange = { lectureTitle = it },
+                            label = { Text("اسم أو عنوان المحاضرة") },
+                            placeholder = { Text("مثال: المحاضرة 3 - الذكاء الاصطناعي") },
+                            leadingIcon = { Icon(Icons.Default.School, contentDescription = null) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("lecture_title_input")
                         )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+
+                        // Folder Selection Chips
+                        if (folders.isNotEmpty()) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = "اختر المادة / المجلد:",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    folders.take(4).forEach { folder ->
+                                        val isSelected = selectedFolder?.id == folder.id
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = { selectedFolder = folder },
+                                            label = { Text(folder.name, fontSize = 11.sp) },
+                                            leadingIcon = if (isSelected) {
+                                                { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                                            } else null,
+                                            shape = RoundedCornerShape(10.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Quick notes
+                        OutlinedTextField(
+                            value = quickNotes,
+                            onValueChange = { quickNotes = it },
+                            label = { Text("ملاحظات يدوية للورقة (اختياري)") },
+                            placeholder = { Text("اكتب أي نقطة رئيسية...") },
+                            maxLines = 2,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("quick_notes_input")
+                        )
+                    }
+                }
+
+                // Visualizer & Live Timer Card (Ultra-visible during recording)
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isRecording) {
+                            if (isPaused) Color(0xFFFEF3C7) else Color(0xFFFEE2E2)
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        }
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp, horizontal = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Pulse Mic Circle
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.size(100.dp)
                         ) {
-                            folders.take(4).forEach { folder ->
-                                val isSelected = selectedFolder?.id == folder.id
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = { selectedFolder = folder },
-                                    label = { Text(folder.name) },
-                                    leadingIcon = if (isSelected) {
-                                        { Icon(Icons.Default.Check, contentDescription = null) }
-                                    } else null,
-                                    shape = RoundedCornerShape(10.dp)
+                            if (isRecording && !isPaused) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(92.dp)
+                                        .scale(pulseScale)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFDC2626).copy(alpha = 0.25f))
+                                )
+                            }
+
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (isRecording) {
+                                            if (isPaused) Color(0xFFF59E0B) else Color(0xFFDC2626)
+                                        } else {
+                                            MaterialTheme.colorScheme.primary
+                                        }
+                                    )
+                            ) {
+                                Icon(
+                                    imageVector = if (isRecording) {
+                                        if (isPaused) Icons.Default.Pause else Icons.Default.Mic
+                                    } else {
+                                        Icons.Default.MicNone
+                                    },
+                                    contentDescription = "ميكروفون",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(36.dp)
                                 )
                             }
                         }
-                    }
-                }
 
-                // Waveform / Pulse Visualizer and Timer
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(130.dp)
-                        .padding(vertical = 8.dp)
-                ) {
-                    if (isRecording && !isPaused) {
-                        Box(
-                            modifier = Modifier
-                                .size(115.dp)
-                                .scale(pulseScale)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+                        // Big Bold Timer
+                        val minutes = durationSeconds / 60
+                        val seconds = durationSeconds % 60
+                        Text(
+                            text = String.format("%02d:%02d", minutes, seconds),
+                            style = MaterialTheme.typography.displaySmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 34.sp
+                            ),
+                            color = if (isRecording && !isPaused) Color(0xFFDC2626) else MaterialTheme.colorScheme.onSurface
                         )
-                    }
 
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(80.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (isRecording) {
-                                    if (isPaused) Color(0xFFF59E0B) else Color(0xFFDC2626)
-                                } else {
-                                    MaterialTheme.colorScheme.primary
-                                }
+                        // Status Badge
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isRecording) {
+                                if (isPaused) Color(0xFFD97706) else Color(0xFFDC2626)
+                            } else {
+                                MaterialTheme.colorScheme.primary
+                            }
+                        ) {
+                            Text(
+                                text = when {
+                                    !isRecording -> "الميكروفون جاهز للتسجيل 🎙️"
+                                    isPaused -> "التسجيل متوقف مؤقتاً ⏸️"
+                                    else -> "جاري الاستماع وتسجيل المحاضرة... 🔴"
+                                },
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                             )
-                    ) {
-                        Icon(
-                            imageVector = if (isRecording) Icons.Default.Mic else Icons.Default.MicNone,
-                            contentDescription = "ميكروفون",
-                            tint = Color.White,
-                            modifier = Modifier.size(38.dp)
-                        )
+                        }
                     }
                 }
 
-                // Timer Display
-                val minutes = durationSeconds / 60
-                val seconds = durationSeconds % 60
-                Text(
-                    text = String.format("%02d:%02d", minutes, seconds),
-                    style = MaterialTheme.typography.headlineMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 32.sp
-                    ),
-                    color = if (isRecording && !isPaused) Color(0xFFDC2626) else MaterialTheme.colorScheme.onSurface
-                )
-
-                Text(
-                    text = when {
-                        !isRecording -> "اضغط على بدء التسجيل عند بدء الدكتور بالشرح"
-                        isPaused -> "التسجيل متوقف مؤقتاً ⏸️"
-                        else -> "جاري الاستماع وتسجيل الأستاذ... 🔴"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                // Quick notes field during or before recording
-                OutlinedTextField(
-                    value = quickNotes,
-                    onValueChange = { quickNotes = it },
-                    label = { Text("ملاحظات للكتابة في الورقة مباشرة (اختياري)") },
-                    placeholder = { Text("اكتب أي نقطة رئيسية ذكرها الدكتور...") },
-                    maxLines = 2,
-                    shape = RoundedCornerShape(12.dp),
+                // ==========================================
+                // ULTRA-PROMINENT RECORDING & STOP CONTROLS
+                // ==========================================
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .testTag("quick_notes_input")
-                )
-
-                // Checkbox: Auto analyze with Gemini
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Checkbox(
-                        checked = autoAnalyzeWithGemini,
-                        onCheckedChange = { autoAnalyzeWithGemini = it }
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "كتابة المحاضرة في الورقة وتلخيصها بالذكاء الاصطناعي ✨",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-
-                // Control Buttons Row
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
+                        .padding(top = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     if (!isRecording) {
+                        // 1. Big Start Recording Button (Primary Mic)
                         Button(
                             onClick = {
-                                viewModel.startRecording(lectureTitle.ifBlank { "محاضرة جديدة" })
+                                viewModel.startRecording(
+                                    name = lectureTitle.ifBlank { "محاضرة جديدة" },
+                                    selectedFolder = selectedFolder,
+                                    userNotes = quickNotes
+                                )
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(52.dp)
+                                .height(58.dp)
                                 .testTag("start_recording_button"),
-                            shape = RoundedCornerShape(14.dp)
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFDC2626),
+                                contentColor = Color.White
+                            ),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
                         ) {
-                            Icon(Icons.Default.FiberManualRecord, contentDescription = null, tint = Color.Red)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("بدء الاستماع والتسجيل (عبر الميكروفون)", fontWeight = FontWeight.Bold)
+                            Icon(
+                                Icons.Default.FiberManualRecord,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "بدء تسجيل المحاضرة (ميكروفون) 🎙️",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
 
-                        // Instant Default Recorded Voice button
+                        // 2. Instant Default Recorded Voice button
                         FilledTonalButton(
                             onClick = {
                                 viewModel.createDefaultSampleLecture(autoSelect = true) {
@@ -300,73 +403,119 @@ fun RecordLectureBottomSheet(
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(50.dp)
+                                .height(52.dp)
                                 .testTag("default_recorded_voice_button"),
-                            shape = RoundedCornerShape(14.dp),
+                            shape = RoundedCornerShape(16.dp),
                             colors = ButtonDefaults.filledTonalButtonColors(
                                 containerColor = MaterialTheme.colorScheme.secondaryContainer
                             )
                         ) {
-                            Icon(Icons.Default.GraphicEq, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+                            Icon(
+                                Icons.Default.GraphicEq,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(20.dp)
+                            )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "تسجيل بصوت افتراضي مسجل 🎧 (تعبئة الورقة فوراً)",
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                         }
                     } else {
+                        // RECORDING ACTIVE CONTROLS:
+                        // 1. HUGE STOP & SAVE BUTTON (Front & Center)
+                        Button(
+                            onClick = {
+                                viewModel.stopRecording(
+                                    lectureTitle = lectureTitle,
+                                    selectedFolder = selectedFolder,
+                                    autoAnalyze = autoAnalyzeWithGemini,
+                                    userNotes = quickNotes
+                                )
+                                onDismiss()
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFDC2626),
+                                contentColor = Color.White
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(60.dp)
+                                .testTag("finish_save_button"),
+                            shape = RoundedCornerShape(16.dp),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Stop,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "⏹️ إيقاف التسجيل وحفظ في الورقة",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // 2. PAUSE / RESUME & CANCEL ROW
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Pause / Resume button
-                            OutlinedButton(
+                            // Pause / Resume Button
+                            FilledTonalButton(
                                 onClick = {
                                     if (isPaused) viewModel.resumeRecording() else viewModel.pauseRecording()
                                 },
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(52.dp)
+                                    .height(50.dp)
                                     .testTag("pause_resume_button"),
-                                shape = RoundedCornerShape(14.dp)
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = if (isPaused) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFF59E0B).copy(alpha = 0.15f)
+                                )
                             ) {
                                 Icon(
                                     imageVector = if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
-                                    contentDescription = null
+                                    contentDescription = null,
+                                    tint = if (isPaused) Color(0xFF10B981) else Color(0xFFD97706)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text(if (isPaused) "استئناف" else "إيقاف مؤقت")
+                                Text(
+                                    text = if (isPaused) "استئناف" else "إيقاف مؤقت",
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isPaused) Color(0xFF10B981) else Color(0xFFD97706)
+                                )
                             }
 
-                            // Stop & Save button
-                            Button(
+                            // Cancel Button
+                            OutlinedButton(
                                 onClick = {
-                                    viewModel.stopRecording(
-                                        lectureTitle = lectureTitle,
-                                        selectedFolder = selectedFolder,
-                                        autoAnalyze = autoAnalyzeWithGemini,
-                                        userNotes = quickNotes
-                                    )
+                                    com.example.audio.AudioRecordingService.cancel(context)
+                                    viewModel.recorder.stopRecording()
                                     onDismiss()
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                                 modifier = Modifier
-                                    .weight(1.3f)
-                                    .height(52.dp)
-                                    .testTag("finish_save_button"),
+                                    .weight(0.9f)
+                                    .height(50.dp)
+                                    .testTag("cancel_recording_button"),
                                 shape = RoundedCornerShape(14.dp)
                             ) {
-                                Icon(Icons.Default.Check, contentDescription = null)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("إنهاء وحفظ في الورقة", fontWeight = FontWeight.Bold)
+                                Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("إلغاء التسجيل")
                             }
                         }
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
         }
     }
 }
