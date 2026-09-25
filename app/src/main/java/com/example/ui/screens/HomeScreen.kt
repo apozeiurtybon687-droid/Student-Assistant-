@@ -53,10 +53,18 @@ fun HomeScreen(
     val isDarkMode = LocalIsDarkMode.current
 
     var showRecordSheet by remember { mutableStateOf(false) }
+    var showTranscribeDialog by remember { mutableStateOf(false) }
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var showApiKeyDialog by remember { mutableStateOf(false) }
     var showDownloadDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
+
+    if (showTranscribeDialog) {
+        AudioTranscriptionDialog(
+            viewModel = viewModel,
+            onDismiss = { showTranscribeDialog = false }
+        )
+    }
 
     if (showThemeDialog) {
         ThemeAndProfileDialog(
@@ -199,6 +207,16 @@ fun HomeScreen(
                             Icons.Default.GraphicEq,
                             contentDescription = "محادثة صوتية مباشرة",
                             tint = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                    IconButton(
+                        onClick = { showTranscribeDialog = true },
+                        modifier = Modifier.testTag("home_transcribe_audio_button")
+                    ) {
+                        Icon(
+                            Icons.Default.RecordVoiceOver,
+                            contentDescription = "تفريغ الصوت (gemini-3.5-transcribe)",
+                            tint = MaterialTheme.colorScheme.tertiary
                         )
                     }
                 },
@@ -413,6 +431,61 @@ fun HomeScreen(
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text("فتح الورقة 📝", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            // Audio Transcription Shortcut Card using gemini-3.5-transcribe
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .clickable { showTranscribeDialog = true }
+                    .testTag("shortcut_audio_transcription"),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.45f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.tertiary),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Mic, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        }
+                        Column {
+                            Text(
+                                text = "تفريغ الصوت الذكي (gemini-3.5-transcribe) 🎙️",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                            Text(
+                                text = "تحدث بصوتك بالميكروفون لتفريغه كلمة بكلمة بالذكاء الاصطناعي",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+                    FilledTonalButton(
+                        onClick = { showTranscribeDialog = true },
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("تفريغ الآن", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

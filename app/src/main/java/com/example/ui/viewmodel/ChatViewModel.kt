@@ -45,15 +45,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _associatedLecture = MutableStateFlow<LectureEntity?>(null)
     val associatedLecture: StateFlow<LectureEntity?> = _associatedLecture.asStateFlow()
 
-    // Available models according to feature specifications
+    // Available models according to feature specifications:
+    // gemini-3.1-pro-preview for complex tasks, gemini-3.5-flash for general tasks, and gemini-3.1-flash-lite for fast tasks.
     val availableModels = listOf(
-        "gemini-2.5-flash" to "Gemini 2.5 Flash (سريع ودقيق وموصى به)",
-        "gemini-3.5-flash" to "Gemini 3.5 Flash (للمهام العامة والتفصيلية)",
         "gemini-3.1-pro-preview" to "Gemini 3.1 Pro (للمهام والتحليلات المعقدة)",
-        "gemini-flash-latest" to "Gemini Flash Latest (أحدث إصدار فلاش)"
+        "gemini-3.5-flash" to "Gemini 3.5 Flash (للمهام العامة والتفصيلية)",
+        "gemini-3.1-flash-lite" to "Gemini 3.1 Flash Lite (للمهام السريعة والفورية)"
     )
 
-    private val _selectedModel = MutableStateFlow("gemini-2.5-flash")
+    private val _selectedModel = MutableStateFlow("gemini-3.5-flash")
     val selectedModel: StateFlow<String> = _selectedModel.asStateFlow()
 
     private val _selectedRole = MutableStateFlow(ChatRolePreset.PROFESSOR)

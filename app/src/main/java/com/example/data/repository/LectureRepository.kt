@@ -69,6 +69,10 @@ class LectureRepository(
         chatMessageDao.clearMessagesForLecture(lectureId)
 
     // Gemini operations
+    suspend fun transcribeAudio(audioFile: File): String {
+        return geminiService.transcribeAudioWithGemini(audioFile)
+    }
+
     suspend fun analyzeAudioFile(audioFile: File, userHint: String): LectureAnalysisResult {
         return geminiService.analyzeLectureAudio(audioFile, userHint)
     }

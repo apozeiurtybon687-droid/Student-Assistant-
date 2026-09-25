@@ -174,10 +174,9 @@ fun GeminiChatScreen(
                             Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             val shortName = when (selectedModel) {
-                                "models/gemini-3.8-flash" -> "Gemini 3.8 Flash"
-                                "gemini-3.1-pro-preview" -> "Gemini 3.1 Pro"
-                                "gemini-3.5-flash" -> "Gemini 3.5 Flash"
-                                "gemini-3.1-flash-lite-preview" -> "Gemini 3.1 Lite"
+                                "gemini-3.1-pro-preview" -> "Gemini 3.1 Pro 🧠"
+                                "gemini-3.5-flash" -> "Gemini 3.5 Flash ⚡"
+                                "gemini-3.1-flash-lite" -> "Gemini 3.1 Lite 🚀"
                                 else -> selectedModel
                             }
                             Text(shortName, fontSize = 11.sp)

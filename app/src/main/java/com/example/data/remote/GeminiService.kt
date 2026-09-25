@@ -124,12 +124,59 @@ class GeminiService(context: Context? = null) {
             })
         }
 
-        // Use valid models: gemini-2.5-flash, gemini-flash-latest, gemini-3.5-flash
+        // Use valid models starting with gemini-3.5-transcribe
         val rawResponse = callGenerateContentWithFallback(
-            listOf("gemini-2.5-flash", "gemini-flash-latest", "gemini-3.5-flash"),
+            listOf("gemini-3.5-transcribe", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-flash-latest"),
             jsonRequest
         )
         parseAnalysisResponse(rawResponse)
+    }
+
+    /**
+     * Transcribe user audio input using model gemini-3.5-transcribe
+     */
+    suspend fun transcribeAudioWithGemini(audioFile: File): String = withContext(Dispatchers.IO) {
+        val audioBytes = audioFile.readBytes()
+        if (audioBytes.isEmpty()) {
+            throw IllegalArgumentException("الملف الصوتي فارغ، لم يتم تسجيل أي صوت.")
+        }
+        val base64Audio = Base64.encodeToString(audioBytes, Base64.NO_WRAP)
+        val mimeType = if (audioFile.name.endsWith(".wav", ignoreCase = true)) "audio/wav" else "audio/mp4"
+
+        val jsonRequest = JSONObject().apply {
+            val contentsArray = JSONArray()
+            val contentObj = JSONObject()
+            val partsArray = JSONArray()
+
+            val audioPart = JSONObject().apply {
+                put("inlineData", JSONObject().apply {
+                    put("mimeType", mimeType)
+                    put("data", base64Audio)
+                })
+            }
+            partsArray.put(audioPart)
+
+            val textPart = JSONObject().apply {
+                put("text", "قم بتفريغ هذا الصوت بدقة تامة إلى نص مكتوب كلمة بكلمة.")
+            }
+            partsArray.put(textPart)
+
+            contentObj.put("parts", partsArray)
+            contentsArray.put(contentObj)
+            put("contents", contentsArray)
+
+            put("systemInstruction", JSONObject().apply {
+                put("parts", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("text", "You are an expert audio transcription model. You transcribe spoken audio accurately and completely word-for-word.")
+                    })
+                })
+            })
+        }
+
+        val models = listOf("gemini-3.5-transcribe", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-flash-latest")
+        val rawResponse = callGenerateContentWithFallback(models, jsonRequest)
+        extractTextFromResponse(rawResponse)
     }
 
     /**
@@ -247,8 +294,16 @@ class GeminiService(context: Context? = null) {
             })
         }
 
-        val cleanModel = modelName.removePrefix("models/").replace("gemini-3.8-flash", "gemini-2.5-flash")
-        val fallbackModels = listOf(cleanModel, "gemini-2.5-flash", "gemini-flash-latest", "gemini-3.5-flash").distinct()
+        val cleanModel = modelName.removePrefix("models/").let {
+            if (it == "gemini-3.8-flash") "gemini-3.5-flash" else it
+        }
+        val fallbackModels = listOf(
+            cleanModel,
+            "gemini-3.5-flash",
+            "gemini-3.1-pro-preview",
+            "gemini-3.1-flash-lite",
+            "gemini-2.5-flash"
+        ).distinct()
         val rawResponse = callGenerateContentWithFallback(fallbackModels, jsonRequest)
         extractTextFromResponse(rawResponse)
     }
