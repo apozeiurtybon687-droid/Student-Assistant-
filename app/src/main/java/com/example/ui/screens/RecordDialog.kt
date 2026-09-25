@@ -124,7 +124,7 @@ fun RecordLectureBottomSheet(
                 text = if (isRecording)
                     "يتم الآن تسجيل الصوت بجودة عالية، اضغط على زر الإيقاف والحفظ بالأسفل لإنهاء التسجيل وتعبئة الورقة فوراً."
                 else
-                    "اضغط على زر بدء التسجيل بالميكروفون أو اختر تسجيل بصوت افتراضي لتجربة فورية.",
+                    "اضغط على زر بدء التسجيل بالميكروفون لبدء تسجيل كلام الأستاذ وحفظه دائماً في ذاكرة هاتفك.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -391,37 +391,6 @@ fun RecordLectureBottomSheet(
                                 text = "بدء تسجيل المحاضرة (ميكروفون) 🎙️",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        // 2. Instant Default Recorded Voice button
-                        FilledTonalButton(
-                            onClick = {
-                                viewModel.createDefaultSampleLecture(autoSelect = true) {
-                                    onDismiss()
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(52.dp)
-                                .testTag("default_recorded_voice_button"),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer
-                            )
-                        ) {
-                            Icon(
-                                Icons.Default.GraphicEq,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "تسجيل بصوت افتراضي مسجل 🎧 (تعبئة الورقة فوراً)",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                         }
                     } else {

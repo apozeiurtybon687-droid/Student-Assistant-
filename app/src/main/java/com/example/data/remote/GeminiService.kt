@@ -66,13 +66,14 @@ class GeminiService(context: Context? = null) {
         val mimeType = if (audioFile.name.endsWith(".wav", ignoreCase = true)) "audio/wav" else "audio/mp4"
 
         val systemPrompt = """
-            أنت مساعد أكاديمي ذكي متخصص في تحليل وتفريغ وتلخيص المحاضرات الجامعية.
-            مهمتك:
-            1. تفريغ صوت الأستاذ بدقة بالغة (Transcript) باللغة المنطوقة كاملة دون اختصار مخل.
-            2. صياغة ملخص شامل وموجز لأهم محاور المحاضرة (Summary).
-            3. تدوين ملاحظات دراسية منظمة ومنسقة في نقاط (Key Points / Organized Notes).
-            4. تقديم شرح تفصيلي ومبسط للمفاهيم والمصطلحات الصعبة التي تطرق لها الأستاذ (In-depth Explanations).
-            5. صياغة أهم الأسئلة الامتحانية المتوقعة والمصطلحات الأساسية (Exam Questions & Key Terms).
+            أنت مساعد أكاديمي متخصص في الاستماع للتسجيلات الصوتية وتفريغها حرفياً بدقة تامة.
+            مهمتك بالغة الأهمية:
+            1. (transcript): استمع إلى الملف الصوتي المرفق واكتب الكلمات التي نطق بها المتحدث حرفياً بدقة تامة كلمة بكلمة دون أي تحريف أو اختلاق لمواضيع خارجية. اكتب ما قاله المتحدث تماماً.
+            2. (summary): لخص بإيجاز ما قاله المتحدث في التسجيل الصوتي المرفق.
+            3. (key_points): النقاط والملاحظات الأساسية المستخلصة حصراً مما قاله المتحدث في الصوت.
+            4. (explanation): شرح وتوضيح لما ورد في كلام المتحدث في التسجيل.
+            5. (exam_questions): أسئلة مراجعة مبنية على ما تحدث به في التسجيل.
+            6. (detected_language): لغة الصوت المنطوق (ar أو en).
             
             يجب أن يكون الرد بتنسيق JSON حصرياً كالتالي:
             {
@@ -100,9 +101,9 @@ class GeminiService(context: Context? = null) {
 
             val textPart = JSONObject().apply {
                 val promptText = if (customPromptHint.isNotBlank()) {
-                    "قم بتفريغ وتحليل هذه المحاضرة الصوتية بالكامل وكتابة كلام الأستاذ نصياً مع مراعاة: $customPromptHint"
+                    "استمع إلى هذا التسجيل الصوتي المرفق، واكتب كلام المتحدث حرفياً كما نطق به في حقل transcript، مع مراعاة: $customPromptHint"
                 } else {
-                    "قم بتفريغ صوت الأستاذ كاملاً إلى نص مكتوب وتحليل وشرح وتلخيص هذه المحاضرة الجامعية بدقة بالغة."
+                    "استمع إلى هذا التسجيل الصوتي المرفق بدقة تامة، واكتب كلام المتحدث حرفياً كلمة بكلمة في حقل transcript ولخص واشرح ما قاله في باقي الحقول بدقة تامة دون أي اختلاق."
                 }
                 put("text", promptText)
             }
@@ -120,20 +121,20 @@ class GeminiService(context: Context? = null) {
 
             put("generationConfig", JSONObject().apply {
                 put("responseMimeType", "application/json")
-                put("temperature", 0.3)
+                put("temperature", 0.1)
             })
         }
 
-        // Use valid models starting with gemini-3.5-transcribe
+        // Use valid multimodal models that reliably support audio transcription
         val rawResponse = callGenerateContentWithFallback(
-            listOf("gemini-3.5-transcribe", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-flash-latest"),
+            listOf("gemini-2.5-flash", "gemini-3.5-flash", "gemini-flash-latest"),
             jsonRequest
         )
         parseAnalysisResponse(rawResponse)
     }
 
     /**
-     * Transcribe user audio input using model gemini-3.5-transcribe
+     * Transcribe user audio input accurately word-for-word using Gemini audio models
      */
     suspend fun transcribeAudioWithGemini(audioFile: File): String = withContext(Dispatchers.IO) {
         val audioBytes = audioFile.readBytes()
@@ -157,7 +158,7 @@ class GeminiService(context: Context? = null) {
             partsArray.put(audioPart)
 
             val textPart = JSONObject().apply {
-                put("text", "قم بتفريغ هذا الصوت بدقة تامة إلى نص مكتوب كلمة بكلمة.")
+                put("text", "استمع إلى هذا الملف الصوتي واكتب كل الكلمات التي قيلت فيه بدقة تامة كلمة بكلمة كما نطقها المتحدث تماماً دون أي زيادة أو تعليق أو اختلاق.")
             }
             partsArray.put(textPart)
 
@@ -168,13 +169,17 @@ class GeminiService(context: Context? = null) {
             put("systemInstruction", JSONObject().apply {
                 put("parts", JSONArray().apply {
                     put(JSONObject().apply {
-                        put("text", "You are an expert audio transcription model. You transcribe spoken audio accurately and completely word-for-word.")
+                        put("text", "You are an expert, precise audio transcription tool. Listen carefully to the attached audio file and transcribe the spoken words accurately and faithfully word-for-word in the language spoken (Arabic or English). Do NOT invent, assume, summarize, or add any text that was not spoken in the audio. Output ONLY the transcribed spoken words.")
                     })
                 })
             })
+
+            put("generationConfig", JSONObject().apply {
+                put("temperature", 0.1)
+            })
         }
 
-        val models = listOf("gemini-3.5-transcribe", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-flash-latest")
+        val models = listOf("gemini-2.5-flash", "gemini-3.5-flash", "gemini-flash-latest")
         val rawResponse = callGenerateContentWithFallback(models, jsonRequest)
         extractTextFromResponse(rawResponse)
     }

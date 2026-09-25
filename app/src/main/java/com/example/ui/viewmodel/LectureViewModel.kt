@@ -94,7 +94,7 @@ class LectureViewModel(application: Application) : AndroidViewModel(application)
     val tempRecordedFile: StateFlow<File?> = _tempRecordedFile.asStateFlow()
 
     init {
-        // Initialize default folders and sample lecture with default recorded voice if empty
+        // Initialize default academic folders if empty, and purge any old demo lectures
         viewModelScope.launch(Dispatchers.IO) {
             val currentFoldersCount = db.folderDao().getFolderCount()
             if (currentFoldersCount == 0) {
@@ -110,10 +110,8 @@ class LectureViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
 
-            val lectureCount = db.lectureDao().getLectureCount()
-            if (lectureCount == 0) {
-                createDefaultSampleLecture(autoSelect = false)
-            }
+            // Permanently remove any demo lectures so student only sees their own work
+            db.lectureDao().deleteDemoLectures()
         }
     }
 
@@ -239,13 +237,10 @@ class LectureViewModel(application: Application) : AndroidViewModel(application)
 
             val initialTranscript = if (userNotes.isNotBlank()) {
                 "🎙️ التفريغ الصوتي لما هو مسجل في المحاضرة:\n\n$userNotes"
-            } else if (audioFile.name.contains("default") || actualDuration <= 2) {
+            } else if (audioFile.name.contains("default")) {
                 com.example.audio.SampleAudioGenerator.SAMPLE_TRANSCRIPT
             } else {
-                """🎙️ التفريغ الصوتي لما تم تسجيله صوتياً:
-مرحباً بكم يا أعزائي الطلاب في محاضرة اليوم بعنوان ($title).
-تم تسجيل كلام الأستاذ بالكامل ومدته ($duration ثانية) وهو محفوظ في جهازك وجاهز للاستماع.
-جاري إتمام المعالجة والتنظيم في الورقة...""".trimIndent()
+                "🎙️ جاري تفريغ كلامك المنطوق من التسجيل الصوتي بدقة...\n(التسجيل الصوتي محفوظ ومدته: $duration ثانية)"
             }
 
             val initialLecture = LectureEntity(
@@ -256,8 +251,8 @@ class LectureViewModel(application: Application) : AndroidViewModel(application)
                 durationSeconds = duration,
                 transcript = initialTranscript,
                 summary = "ملخص محاضرة: $title\nتم تسجيل وحفظ الصوت بنجاح في المجلد: $folderName.",
-                keyPoints = "• تسجيل صوتي مدته $duration ثانية جاهز للاستماع والتحكم.\n• الورقة مكتوبة ومملوءة بما تم تسجيله من كلام الأستاذ.\n• يمكنك تشغيل الصوت أو إيقافه أو إعادته من البداية عبر المشغل أعلاه.",
-                explanation = "شرح مفاهيم وتوضيحات المحاضرة وفقاً لما ذكره الأستاذ في التسجيل."
+                keyPoints = "• تسجيل صوتي مدته $duration ثانية جاهز للاستماع والتحكم.\n• يمكنك تشغيل الصوت أو إيقافه أو إعادته من البداية عبر المشغل أعلاه.",
+                explanation = "شرح مفاهيم وتوضيحات المحاضرة المسجلة."
             )
 
             val newId = repository.saveLecture(initialLecture)
@@ -277,13 +272,13 @@ class LectureViewModel(application: Application) : AndroidViewModel(application)
     fun analyzeLecture(lecture: LectureEntity, audioFile: File? = null, initialUserNotes: String = "") {
         viewModelScope.launch(Dispatchers.IO) {
             _isAnalyzing.value = true
-            _statusMessage.value = "جاري الاستماع للمحاضرة المسجلة وكتابتها وتلخيصها في الورقة..."
+            _statusMessage.value = "جاري الاستماع للملف الصوتي وتفريغ كلامك بدقة تامة..."
 
             try {
                 val file = audioFile ?: lecture.audioPath?.let { File(it) }
                 val result = if (file != null && file.exists() && file.length() > 500 && apiKeyManager.hasValidKey()) {
                     repository.analyzeAudioFile(file, "")
-                } else if (lecture.transcript.length > 50 && apiKeyManager.hasValidKey()) {
+                } else if (lecture.transcript.length > 50 && !lecture.transcript.contains("جاري") && apiKeyManager.hasValidKey()) {
                     repository.analyzeTextContent(lecture.transcript)
                 } else {
                     null
@@ -302,15 +297,15 @@ class LectureViewModel(application: Application) : AndroidViewModel(application)
                     )
                     repository.updateLecture(updated)
                     _selectedLecture.value = updated
-                    _statusMessage.value = "تمت تعبئة الورقة بكلام المحاضرة وتلخيصها بنجاح! 📝✨"
+                    _statusMessage.value = "تم تفريغ كلامك المسجل وكتابته في الورقة بنجاح! 📝✨"
                 } else {
-                    // Fallback to rich, complete transcribed text on the notebook paper
+                    // Fallback to rich, complete transcribed text on the notebook paper without fake CS text
                     applyRichRecordedLectureContent(lecture, initialUserNotes)
                 }
             } catch (e: Exception) {
                 val errorMsg = e.message ?: "تنبيه"
                 Log.w("LectureViewModel", "AI analysis exception: $errorMsg")
-                // Always ensure the notebook paper is completely filled with the recorded speech
+                // Always ensure the notebook paper displays true content and guidance
                 applyRichRecordedLectureContent(lecture, initialUserNotes, errorNotice = errorMsg)
             } finally {
                 _isAnalyzing.value = false
@@ -323,50 +318,47 @@ class LectureViewModel(application: Application) : AndroidViewModel(application)
         initialUserNotes: String = "",
         errorNotice: String? = null
     ) {
+        val isDefaultSample = lecture.audioPath?.contains("default") == true || lecture.title.contains("أساسيات") || lecture.title.contains("افتراضي")
+
         val richTranscript = if (initialUserNotes.isNotBlank()) {
-            "🎙️ التفريغ الصوتي لكلام الأستاذ المسجل:\n\n$initialUserNotes"
-        } else if (lecture.audioPath?.contains("default") == true || lecture.title.contains("أساسيات") || lecture.transcript.contains("مرحباً بكم يا أعزائي")) {
+            "🎙️ الملاحظات المسجلة:\n\n$initialUserNotes"
+        } else if (isDefaultSample) {
             com.example.audio.SampleAudioGenerator.SAMPLE_TRANSCRIPT
         } else {
-            """🎙️ التفريغ الصوتي لكلام الأستاذ في المحاضرة (${lecture.title}):
+            val keyNotice = if (!apiKeyManager.hasValidKey()) {
+                "\n\n💡 ملاحظة: لتفعيل التفريغ التلقائي بالذكاء الاصطناعي لكلامك المسجل، يرجى إدخال مفتاح Gemini API من أيقونة المفتاح 🔑 بأعلى الشاشة، أو اضغط على أيقونة القلم ✏️ لكتابة وتعديل ملاحظاتك يدوياً."
+            } else if (errorNotice != null) {
+                "\n\n⚠️ تعذر التفريغ التلقائي للصوت: $errorNotice\n(يمكنك الضغط على القلم ✏️ لكتابة وتعديل ملاحظاتك أو التأكد من اتصال الإنترنت)."
+            } else {
+                ""
+            }
 
-مرحباً بكم يا أبنائي وبناتي الطلاب في محاضرة اليوم لمادة ${lecture.folderName}.
-خلال هذا الشرح المسجل (${lecture.durationSeconds} ثانية)، تم تفريغ وتدوين النقاط الرئيسية التي شرحها الدكتور:
-1. مقدمة شاملة وتحديد المفاهيم والأهداف الأساسية للمحاضرة.
-2. الشرح التفصيلي للأنماط والفروقات الجوهرية والخصائص العلمية.
-3. استعراض الأمثلة التطبيقية والتنبيه على النقاط الهامة للاختبار القادم.
-
-(هذا النص مفرغ ومكتوب بالكامل في الورقة، متطابق مع الصوت المسجل أعلاه، ويمكنك الاستماع إليه أو تعديله بالقلم ✏️).""".trimIndent()
+            """🎙️ تسجيل صوتي (${lecture.durationSeconds} ثانية) محفوظ بنجاح:
+تم حفظ تسجيل المحاضرة الصوتي على جهازك وهو جاهز للاستماع والتشغيل عبر المشغل أعلاه.$keyNotice""".trimIndent()
         }
 
-        val richSummary = if (lecture.summary.contains("المحور") || !lecture.summary.contains("جاري")) {
-            if (lecture.summary.isNotBlank()) lecture.summary else com.example.audio.SampleAudioGenerator.SAMPLE_SUMMARY
+        val richSummary = if (isDefaultSample) {
+            com.example.audio.SampleAudioGenerator.SAMPLE_SUMMARY
         } else {
-            """ملخص المحاضرة المسجلة (${lecture.title}):
-• تم تلخيص محاور ما تم شرحه وتسجيله صوتياً في مادة ${lecture.folderName}.
-• استعراض النقاط الأساسية والتطبيقات العملية بوضوح.
-• يمكنك مراجعة الورقة والملاحظات المنظمة في الأقسام المخصصة."""
+            "ملخص محاضرة: ${lecture.title}\nتسجيل صوتي مدته ${lecture.durationSeconds} ثانية في مادة ${lecture.folderName}."
         }
 
-        val richKeyPoints = if (lecture.keyPoints.contains("البرمجة") || lecture.keyPoints.contains("•")) {
-            if (lecture.keyPoints.isNotBlank()) lecture.keyPoints else com.example.audio.SampleAudioGenerator.SAMPLE_KEY_POINTS
+        val richKeyPoints = if (isDefaultSample) {
+            com.example.audio.SampleAudioGenerator.SAMPLE_KEY_POINTS
         } else {
-            """• تم تدوين وتفريغ التسجيل الصوتي (${lecture.durationSeconds} ثانية) بنجاح.
-• المحاور الرئيسية للمحاضرة مدونة في الورقة الدفترية.
-• المشغل الصوتي يتيح لك إعادة الاستماع والتقديم والتأخير في أي لحظة.
-• يمكنك الضغط على القلم ✏️ لكتابة وتعديل أي ملاحظات إضافية يدوياً."""
+            "• تسجيل صوتي لمحاضرة ${lecture.title} (${lecture.durationSeconds} ثانية).\n• التسجيل محفوظ على الجهاز وقابل للتشغيل والتقديم والتأخير.\n• يمكنك تدوين وتعديل الملاحظات بالقلم في أي وقت."
         }
 
-        val richExplanation = if (lecture.explanation.isNotBlank() && !lecture.explanation.contains("جاري")) {
-            lecture.explanation
-        } else {
+        val richExplanation = if (isDefaultSample) {
             com.example.audio.SampleAudioGenerator.SAMPLE_EXPLANATION
+        } else {
+            "شرح وتوضيحات محاضرة: ${lecture.title}."
         }
 
-        val richExamQuestions = if (lecture.examQuestions.isNotBlank()) {
-            lecture.examQuestions
-        } else {
+        val richExamQuestions = if (isDefaultSample) {
             com.example.audio.SampleAudioGenerator.SAMPLE_EXAM_QUESTIONS
+        } else {
+            "1. ما هي أهم النقاط التي تم تسجيلها في محاضرة ${lecture.title}؟"
         }
 
         val updated = lecture.copy(
@@ -398,13 +390,17 @@ class LectureViewModel(application: Application) : AndroidViewModel(application)
         lecture: LectureEntity,
         newTranscript: String,
         newSummary: String? = null,
-        newKeyPoints: String? = null
+        newKeyPoints: String? = null,
+        newExplanation: String? = null,
+        newTranslatedText: String? = null
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             val updated = lecture.copy(
                 transcript = newTranscript,
                 summary = newSummary ?: lecture.summary,
-                keyPoints = newKeyPoints ?: lecture.keyPoints
+                keyPoints = newKeyPoints ?: lecture.keyPoints,
+                explanation = newExplanation ?: lecture.explanation,
+                translatedText = newTranslatedText ?: lecture.translatedText
             )
             repository.updateLecture(updated)
             _selectedLecture.value = updated

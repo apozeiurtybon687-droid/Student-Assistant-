@@ -215,7 +215,7 @@ fun HomeScreen(
                     ) {
                         Icon(
                             Icons.Default.RecordVoiceOver,
-                            contentDescription = "تفريغ الصوت (gemini-3.5-transcribe)",
+                            contentDescription = "التفريغ الصوتي الذكي الحرفي (Gemini Audio)",
                             tint = MaterialTheme.colorScheme.tertiary
                         )
                     }
@@ -436,65 +436,60 @@ fun HomeScreen(
                 }
             }
 
-            // Default Recorded Voice Lecture Shortcut Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                    .clickable {
-                        viewModel.createDefaultSampleLecture(autoSelect = true) { lecture ->
-                            onOpenLecture(lecture)
-                        }
-                    }
-                    .testTag("shortcut_sample_voice_lecture"),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
-                )
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+            // Latest Recorded Lecture Quick Card (shows student's real saved lecture)
+            val latestLecture = lectures.firstOrNull()
+            if (latestLecture != null) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .clickable { onOpenLecture(latestLecture) }
+                        .testTag("latest_lecture_quick_card"),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                    )
                 ) {
                     Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.weight(1f)
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.secondary),
-                            contentAlignment = Alignment.Center
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Icon(Icons.Default.Headphones, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                        }
-                        Column {
-                            Text(
-                                text = "محاضرة بصوت افتراضي مسجل 🎧",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                            Text(
-                                text = "استمع للصوت المسجل وشاهد ما تم كتابته في الورقة",
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
-                            )
-                        }
-                    }
-                    FilledTonalButton(
-                        onClick = {
-                            viewModel.createDefaultSampleLecture(autoSelect = true) { lecture ->
-                                onOpenLecture(lecture)
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Mic, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                             }
-                        },
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("فتح الورقة 📝", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Column {
+                                Text(
+                                    text = "متابعة آخر محاضرة: ${latestLecture.title}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    text = "${latestLecture.folderName} • ${latestLecture.durationSeconds} ثانية • محفوظة في الذاكرة",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                )
+                            }
+                        }
+                        Button(
+                            onClick = { onOpenLecture(latestLecture) },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("فتح الورقة 📝", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -532,7 +527,7 @@ fun HomeScreen(
                         }
                         Column {
                             Text(
-                                text = "تفريغ الصوت الذكي (gemini-3.5-transcribe) 🎙️",
+                                text = "تفريغ الصوت الذكي الحرفي (Gemini Audio) 🎙️",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onTertiaryContainer
@@ -654,32 +649,14 @@ fun HomeScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 16.dp)
                         )
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        Button(
+                            onClick = { showRecordSheet = true },
+                            shape = RoundedCornerShape(14.dp),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
                         ) {
-                            Button(
-                                onClick = { showRecordSheet = true },
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Icon(Icons.Default.Mic, contentDescription = null)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("تسجيل محاضرة")
-                            }
-
-                            FilledTonalButton(
-                                onClick = {
-                                    viewModel.createDefaultSampleLecture(autoSelect = true) { lecture ->
-                                        onOpenLecture(lecture)
-                                    }
-                                },
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.testTag("empty_state_sample_lecture_button")
-                            ) {
-                                Icon(Icons.Default.Headphones, contentDescription = null)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("صوت افتراضي مسجل 🎧")
-                            }
+                            Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("بدء تسجيل أول محاضرة 🎙️", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
                     }
                 }

@@ -47,4 +47,7 @@ interface LectureDao {
 
     @Query("DELETE FROM lectures WHERE id = :id")
     suspend fun deleteLectureById(id: Long)
+
+    @Query("DELETE FROM lectures WHERE title LIKE '%أساسيات%' OR audioPath LIKE '%default%' OR title LIKE '%تجريبي%'")
+    suspend fun deleteDemoLectures()
 }

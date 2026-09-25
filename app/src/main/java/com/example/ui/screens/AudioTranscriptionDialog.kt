@@ -76,6 +76,14 @@ fun AudioTranscriptionDialog(
     var transcriptionResult by remember { mutableStateOf<String?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var recordedAudioFile by remember { mutableStateOf<File?>(null) }
+    var showApiKeyDialogInSheet by remember { mutableStateOf(false) }
+
+    if (showApiKeyDialogInSheet) {
+        ApiKeySettingsDialog(
+            apiKeyManager = viewModel.apiKeyManager,
+            onDismiss = { showApiKeyDialogInSheet = false }
+        )
+    }
 
     // Pulse animation for recording microphone
     val infiniteTransition = rememberInfiniteTransition(label = "transcribePulse")
@@ -121,7 +129,7 @@ fun AudioTranscriptionDialog(
                     modifier = Modifier.size(26.dp)
                 )
                 Text(
-                    text = "التفريغ الصوتي الذكي (gemini-3.5-transcribe) 🎙️",
+                    text = "التفريغ الصوتي الذكي الحرفي (Gemini Audio) 🎙️",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -250,39 +258,6 @@ fun AudioTranscriptionDialog(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("تحدث الآن بالميكروفون للتفريغ 🎙️", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                         }
-
-                        // Sample Voice Test Button
-                        FilledTonalButton(
-                            onClick = {
-                                coroutineScope.launch {
-                                    isTranscribing = true
-                                    errorMessage = null
-                                    try {
-                                        val sampleFile = com.example.audio.SampleAudioGenerator.getOrCreateSampleAudioFile(context)
-                                        val text = if (viewModel.apiKeyManager.hasValidKey()) {
-                                            viewModel.repository.transcribeAudio(sampleFile)
-                                        } else {
-                                            com.example.audio.SampleAudioGenerator.SAMPLE_TRANSCRIPT
-                                        }
-                                        transcriptionResult = text
-                                        onTranscriptionComplete?.invoke(text)
-                                    } catch (e: Exception) {
-                                        transcriptionResult = com.example.audio.SampleAudioGenerator.SAMPLE_TRANSCRIPT
-                                    } finally {
-                                        isTranscribing = false
-                                    }
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp)
-                                .testTag("sample_voice_transcribe_button"),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-                            Icon(Icons.Default.GraphicEq, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("تجربة صوت مسجل جاهز 🎧", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        }
                     } else {
                         Button(
                             onClick = {
@@ -291,24 +266,27 @@ fun AudioTranscriptionDialog(
                                     isTranscribing = true
                                     errorMessage = null
                                     try {
-                                        val targetFile = if (file != null && file.exists() && file.length() > 500) {
-                                            file
-                                        } else {
-                                            com.example.audio.SampleAudioGenerator.getOrCreateSampleAudioFile(context)
+                                        val targetFile = file
+                                        if (targetFile == null || !targetFile.exists() || targetFile.length() < 300) {
+                                            errorMessage = "لم يتم التقاط أي صوت، يرجى التحدث بوضوح بالقرب من الميكروفون."
+                                            return@launch
                                         }
 
-                                        val text = if (viewModel.apiKeyManager.hasValidKey()) {
-                                            viewModel.repository.transcribeAudio(targetFile)
-                                        } else {
-                                            com.example.audio.SampleAudioGenerator.SAMPLE_TRANSCRIPT
+                                        if (!viewModel.apiKeyManager.hasValidKey()) {
+                                            errorMessage = "لتفريغ الصوت المسجل بالذكاء الاصطناعي، يرجى إدخال مفتاح Gemini API."
+                                            return@launch
                                         }
-                                        transcriptionResult = text
-                                        onTranscriptionComplete?.invoke(text)
+
+                                        val text = viewModel.repository.transcribeAudio(targetFile)
+                                        if (text.isNotBlank()) {
+                                            transcriptionResult = text
+                                            onTranscriptionComplete?.invoke(text)
+                                        } else {
+                                            errorMessage = "لم يتمكن النموذج من استخراج كلمات واضحة من الصوت المسجل."
+                                        }
                                     } catch (e: Exception) {
                                         val err = e.message ?: "حدث خطأ أثناء التفريغ"
-                                        errorMessage = err
-                                        // Provide guaranteed transcribed fallback
-                                        transcriptionResult = com.example.audio.SampleAudioGenerator.SAMPLE_TRANSCRIPT
+                                        errorMessage = "تعذر التفريغ: $err"
                                     } finally {
                                         isTranscribing = false
                                     }
@@ -327,7 +305,7 @@ fun AudioTranscriptionDialog(
                         ) {
                             Icon(Icons.Default.Stop, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("⏹️ إيقاف وتفريغ الصوت (gemini-3.5-transcribe)", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            Text("⏹️ إيقاف وتفريغ الصوت المسجل بدقة", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -340,18 +318,44 @@ fun AudioTranscriptionDialog(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        Text("يقوم نموذج gemini-3.5-transcribe بمعالجة الصوت...", fontSize = 12.sp)
+                        Text("جاري الاستماع وتفريغ الكلمات المنطوقة بدقة بالغة...", fontSize = 12.sp)
                     }
                 }
 
-                // Error Notice
+                // Error Notice & API Key helper
                 if (errorMessage != null) {
-                    Text(
-                        text = "تنبيه: $errorMessage",
-                        color = MaterialTheme.colorScheme.error,
-                        fontSize = 11.sp,
-                        textAlign = TextAlign.Center
-                    )
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = errorMessage ?: "",
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.Center
+                            )
+                            if (!viewModel.apiKeyManager.hasValidKey()) {
+                                Button(
+                                    onClick = { showApiKeyDialogInSheet = true },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.error,
+                                        contentColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("إدخال مفتاح Gemini API الآن 🔑", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // Transcribed Result Card

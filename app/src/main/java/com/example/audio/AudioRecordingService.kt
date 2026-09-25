@@ -265,10 +265,31 @@ class AudioRecordingService : Service() {
                 }
 
                 val db = AppDatabase.getDatabase(applicationContext)
-                val initialTranscript = if (quickNotes.isNotBlank()) {
-                    "🎙️ التفريغ الصوتي لما هو مسجل في المحاضرة:\n\n$quickNotes"
+                val apiKeyManager = com.example.data.local.ApiKeyManager(applicationContext)
+                val geminiService = com.example.data.remote.GeminiService(applicationContext)
+
+                var finalTranscript = if (quickNotes.isNotBlank()) {
+                    "🎙️ الملاحظات المسجلة:\n\n$quickNotes"
                 } else {
-                    SampleAudioGenerator.SAMPLE_TRANSCRIPT
+                    "🎙️ تم تسجيل الصوت بنجاح (${duration} ثانية) في الخلفية.\nيمكنك الاستماع إليه في أي وقت عبر مشغل الصوت داخل التطبيق."
+                }
+                var finalSummary = "ملخص محاضرة: $title\nتم تسجيل وحفظ الصوت بنجاح من شريط الإشعارات."
+                var finalKeyPoints = "• تم تسجيل المحاضرة بنجاح في الخلفية (${duration} ثانية).\n• تم حفظ الصوت في المجلد: $folderName.\n• يمكنك فتح التطبيق للاستماع للصوت وتعديل الملاحظات بالقلم."
+                var finalExplanation = "توضيحات وملاحظات المحاضرة المسجلة صوتياً."
+
+                // If user has a valid API key, transcribe the real spoken audio with Gemini!
+                if (apiKeyManager.hasValidKey() && audioFile.exists() && audioFile.length() > 500) {
+                    try {
+                        val analysis = geminiService.analyzeLectureAudio(audioFile, "")
+                        if (analysis.transcript.isNotBlank()) {
+                            finalTranscript = analysis.transcript
+                            finalSummary = analysis.summary
+                            finalKeyPoints = analysis.keyPoints
+                            finalExplanation = analysis.explanation
+                        }
+                    } catch (e: Exception) {
+                        Log.w("AudioRecordingService", "Background AI transcription failed: ${e.message}")
+                    }
                 }
 
                 val lecture = LectureEntity(
@@ -276,11 +297,11 @@ class AudioRecordingService : Service() {
                     folderId = folderId,
                     folderName = folderName,
                     audioPath = audioFile.absolutePath,
-                    durationSeconds = if (duration > 0) duration else SampleAudioGenerator.SAMPLE_DURATION_SECONDS,
-                    transcript = initialTranscript,
-                    summary = "ملخص محاضرة: $title\nتم تسجيل وحفظ الصوت بنجاح من شريط الإشعارات.",
-                    keyPoints = "• تم تسجيل المحاضرة بنجاح في الخلفية (${duration} ثانية).\n• تم حفظ الصوت وتعبئة الورقة الدفترية تلقائياً.\n• يمكنك فتح التطبيق للاستماع للصوت وقراءة الملاحظات المكتوبة.",
-                    explanation = "شرح مفاهيم وتوضيحات المحاضرة المسجلة صوتياً."
+                    durationSeconds = if (duration > 0) duration else 0,
+                    transcript = finalTranscript,
+                    summary = finalSummary,
+                    keyPoints = finalKeyPoints,
+                    explanation = finalExplanation
                 )
 
                 db.lectureDao().insertLecture(lecture)
